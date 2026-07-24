@@ -1,0 +1,2563 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Forex Portfolio Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter','system-ui','sans-serif'],
+        mono: ['"JetBrains Mono"','monospace'],
+      },
+      colors: {
+        base: { bg:'#0A0E13', panel:'#111823', panel2:'#161F2C', line:'#212C3B', line2:'#2A3849' },
+        ink: { 1:'#EAF0F7', 2:'#9CACC2', 3:'#5E7089' },
+        mint: '#2FD98A',
+        rose: '#F1546B',
+        amber: '#F0A93B',
+        sky: '#3AA9F0',
+      },
+      boxShadow: { card: '0 1px 0 0 rgba(255,255,255,0.03) inset, 0 8px 24px -12px rgba(0,0,0,0.6)' }
+    }
+  }
+}
+</script>
+<style>
+  html,body{ background:#0A0E13; -webkit-tap-highlight-color: transparent; overscroll-behavior:none; }
+  * { -webkit-user-select:none; user-select:none; }
+  input,textarea,select { -webkit-user-select:text; user-select:text; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#2A3849; border-radius:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  .num { font-family:'JetBrains Mono',monospace; font-variant-numeric: tabular-nums; }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+  .modal-backdrop{ display:none; }
+  .modal-backdrop.active{ display:flex; }
+  .chip{ font-size:11px; font-weight:600; letter-spacing:.02em; padding:2px 8px; border-radius:999px; }
+  .status-online{ background:rgba(47,217,138,.12); color:#2FD98A; }
+  .status-warn{ background:rgba(240,169,59,.12); color:#F0A93B; }
+  .status-error{ background:rgba(241,84,107,.12); color:#F1546B; }
+  .status-offline{ background:rgba(94,112,137,.15); color:#8D9DB3; }
+  .glow-dot{ box-shadow:0 0 0 3px rgba(47,217,138,.15); }
+  .card{ background:#111823; border:1px solid #212C3B; border-radius:16px; }
+  .flow-node{ background:#161F2C; border:1px solid #212C3B; border-radius:12px; }
+  .flow-node:active{ background:#1A2431; }
+  select, input[type=text], input[type=number], input[type=date], textarea{
+    background:#0D131B; border:1px solid #263447; color:#EAF0F7; border-radius:10px; padding:8px 10px; font-size:14px;
+  }
+  select:focus, input:focus, textarea:focus{ outline:none; border-color:#3AA9F0; }
+  .btn{ border-radius:10px; padding:9px 14px; font-size:14px; font-weight:600; }
+  .btn-primary{ background:#3AA9F0; color:#04121F; }
+  .btn-primary:active{ background:#2E93D6; }
+  .btn-ghost{ background:#161F2C; color:#EAF0F7; border:1px solid #263447; }
+  .btn-ghost:active{ background:#1C2735; }
+  .btn-danger{ background:rgba(241,84,107,.12); color:#F1546B; border:1px solid rgba(241,84,107,.25); }
+  @media (max-width:767px){ .sidebar{ display:none; } .bottomnav{ display:flex; } }
+  @media (min-width:768px){ .bottomnav{ display:none; } }
+  .map-issue-card{ cursor:pointer; transition:border-color .15s, transform .15s; }
+  .map-issue-card:active{ transform:scale(0.98); }
+  .map-issue-card:hover{ border-color:rgba(241,84,107,.5); }
+  @keyframes mapIssuePulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(241,84,107,.55); }
+    50%{ box-shadow:0 0 0 8px rgba(241,84,107,0); }
+  }
+  .map-issue-pulse{ animation:mapIssuePulse 0.8s ease-in-out 3; border-color:#F1546B !important; }
+  .toast-item{ background:#161F2C; border:1px solid #263447; color:#EAF0F7; border-radius:12px; padding:11px 16px; font-size:13px; font-weight:600; box-shadow:0 12px 32px -8px rgba(0,0,0,.6); display:flex; align-items:center; gap:8px; transition:opacity .25s, transform .25s; }
+  .toast-item.success{ border-color:rgba(47,217,138,.35); }
+  .toast-item.success .toast-dot{ background:#2FD98A; }
+  .toast-item.warn{ border-color:rgba(240,169,59,.35); }
+  .toast-item.warn .toast-dot{ background:#F0A93B; }
+  .toast-item .toast-dot{ width:8px; height:8px; border-radius:999px; background:#3AA9F0; flex-shrink:0; }
+</style>
+</head>
+<body class="text-ink-1 font-sans min-h-screen">
+
+<div class="flex min-h-screen">
+  <!-- Sidebar (iPad landscape / desktop) -->
+  <aside class="sidebar w-60 shrink-0 border-r border-base-line bg-base-panel flex-col h-screen sticky top-0" style="display:flex;">
+    <div class="px-5 pt-6 pb-5">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky to-mint flex items-center justify-center text-base-bg font-extrabold">F</div>
+        <div>
+          <div class="text-[13px] font-extrabold leading-tight tracking-wide">FOREX PORTFOLIO</div>
+          <div class="text-[11px] text-ink-3 leading-tight">MANAGER</div>
+        </div>
+      </div>
+    </div>
+    <nav class="flex-1 px-3 space-y-1" id="navList">
+      <button data-tab="dashboard" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>📊</span><span>Dashboard</span>
+      </button>
+      <button data-tab="map" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>🗺️</span><span>Portfolio Map</span>
+      </button>
+      <button data-tab="log" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>🧾</span><span>Daily Log</span>
+      </button>
+      <button data-tab="portfolio" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>💼</span><span>Portfolio</span>
+      </button>
+      <button data-tab="vps" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>🖥️</span><span>VPS</span>
+      </button>
+      <button data-tab="ea" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>🤖</span><span>EA</span>
+      </button>
+      <button data-tab="statistics" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>📈</span><span>Statistics</span>
+      </button>
+      <button data-tab="settings" class="navbtn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left">
+        <span>⚙️</span><span>Settings</span>
+      </button>
+    </nav>
+    <div class="px-3 pb-3">
+      <div class="text-[10px] font-bold text-ink-3 tracking-wider px-3 mb-1.5">QUICK ACTIONS</div>
+      <div class="space-y-1">
+        <button onclick="openPortfolioModal()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left text-ink-2 hover:text-ink-1" style="background:#161F2C;">+ เพิ่ม Portfolio</button>
+        <button onclick="openVpsModal()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left text-ink-2 hover:text-ink-1" style="background:#161F2C;">+ เพิ่ม VPS</button>
+        <button onclick="openEaModal()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left text-ink-2 hover:text-ink-1" style="background:#161F2C;">+ เพิ่ม EA</button>
+        <button onclick="switchTab('log');openLogModal()" class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left text-ink-2 hover:text-ink-1" style="background:#161F2C;">+ บันทึกประจำวัน</button>
+      </div>
+    </div>
+    <div class="p-4 border-t border-base-line">
+      <div class="text-[11px] text-ink-3">ข้อมูลบันทึกในเครื่องนี้เท่านั้น</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 min-w-0">
+    <header class="sticky top-0 z-10 backdrop-blur bg-base-bg/85 border-b border-base-line px-4 md:px-8 py-4 flex items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl md:text-2xl font-extrabold" id="pageTitle">Dashboard</h1>
+        <p class="text-ink-3 text-xs md:text-sm mt-0.5" id="pageSub">สรุปผลการดำเนินงานของทุกพอร์ต</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="date" id="asOfDate" class="text-xs md:text-sm">
+        <button id="refreshBtn" class="btn btn-ghost text-xs md:text-sm">⟳ รีเฟรช</button>
+      </div>
+    </header>
+
+    <div class="px-4 md:px-8 py-5 pb-24 md:pb-8">
+
+      <!-- DASHBOARD -->
+      <section id="tab-dashboard" class="tab-panel active space-y-5">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="kpiRow"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 card p-4 md:p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-bold text-sm md:text-base">Portfolio Map</h2>
+              <span class="text-[11px] text-ink-3">VPS → EA → คู่เงิน</span>
+            </div>
+            <div id="mapPreview" class="space-y-2"></div>
+          </div>
+          <div class="card p-4 md:p-5">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="font-bold text-sm md:text-base">สถานะพอร์ต</h2>
+            </div>
+            <div class="flex items-center gap-4">
+              <div id="statusDonut" class="w-28 h-28 rounded-full shrink-0"></div>
+              <div class="flex-1 space-y-1.5 text-xs" id="statusLegend"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4 md:p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-bold text-sm md:text-base">บันทึกล่าสุด</h2>
+            <button class="text-xs text-sky font-semibold" onclick="switchTab('log')">ดูทั้งหมด →</button>
+          </div>
+          <div class="overflow-x-auto -mx-1">
+            <table class="w-full text-xs md:text-sm" id="recentLogTable"></table>
+          </div>
+        </div>
+      </section>
+
+      <!-- PORTFOLIO MAP -->
+      <section id="tab-map" class="tab-panel space-y-4">
+        <div class="flex items-center justify-end gap-2">
+          <div class="relative">
+            <button class="btn btn-primary text-xs md:text-sm whitespace-nowrap" onclick="toggleMapManageMenu()">+ จัดการแผนผัง</button>
+            <div id="mapManageMenu" class="hidden absolute right-0 mt-2 w-44 card p-1.5 z-20 shadow-xl">
+              <button class="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-white/5" onclick="closeMapManageMenu();openVpsModal()">+ เพิ่ม VPS</button>
+              <button class="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-white/5" onclick="closeMapManageMenu();openPortfolioModal()">+ เพิ่ม Portfolio</button>
+              <button class="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-white/5" onclick="closeMapManageMenu();openEaModal()">+ เพิ่ม EA</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" id="mapKpiRow"></div>
+
+        <div class="card p-3 flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1 rounded-lg overflow-hidden border border-base-line">
+            <button class="px-3 py-2 text-sm font-bold" onclick="mapZoom(-0.1)">−</button>
+            <button class="px-3 py-2 text-sm font-bold" onclick="mapZoom(0.1)">+</button>
+            <button class="px-2.5 py-2 text-xs" onclick="mapToggleFullscreen()">⛶</button>
+            <button class="px-2.5 py-2 text-xs num" id="mapZoomLabel" onclick="mapZoomReset()">100%</button>
+          </div>
+          <button class="btn btn-ghost text-xs md:text-sm" onclick="renderAll();showToast('รีเฟรชข้อมูลแล้ว')">⟳ รีเฟรชข้อมูล</button>
+          <input type="text" id="mapSearch" placeholder="ค้นหา Portfolio, VPS, EA, คู่เงิน..." class="text-xs md:text-sm flex-1 min-w-[160px]">
+          <select id="mapFilterStatus" class="text-xs md:text-sm">
+            <option value="">ทั้งหมด</option>
+            <option value="active">ใช้งานอยู่</option>
+            <option value="warning">เตือน</option>
+            <option value="offline">ไม่ได้เชื่อมต่อ</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4">
+          <div id="mapDiagramWrap" class="card p-4 overflow-auto" style="max-height:640px;">
+            <div id="mapDiagramInner" style="transform-origin: top left; min-width:1040px;"></div>
+          </div>
+          <div class="space-y-4">
+            <div class="card p-4">
+              <h3 class="font-bold text-sm mb-3">สรุปการเชื่อมต่อ</h3>
+              <div class="flex items-center gap-4">
+                <div id="mapConnDonut" class="w-20 h-20 rounded-full shrink-0"></div>
+                <div class="flex-1 space-y-1.5 text-xs" id="mapConnLegend"></div>
+              </div>
+            </div>
+            <div class="card p-4">
+              <h3 class="font-bold text-sm mb-3">สถานะ VPS</h3>
+              <div class="space-y-1.5 text-xs" id="mapVpsStatusList"></div>
+            </div>
+            <div class="card p-4">
+              <h3 class="font-bold text-sm mb-3">การกระจายคู่เงิน</h3>
+              <div class="space-y-2" id="mapSymbolDist"></div>
+            </div>
+            <div class="card p-4">
+              <h3 class="font-bold text-sm mb-3">Legend</h3>
+              <div class="space-y-2 text-xs text-ink-2">
+                <div class="flex items-center gap-2"><span class="inline-block w-6 h-0.5" style="background:#2FD98A"></span>เชื่อมต่อใช้งานอยู่</div>
+                <div class="flex items-center gap-2"><span class="inline-block w-6 h-0.5" style="background:#F0A93B;border-top:1px dashed #F0A93B;"></span>เชื่อมต่ออย่างมีเตือน</div>
+                <div class="flex items-center gap-2"><span class="inline-block w-6 h-0.5" style="background:#5E7089;border-top:1px dashed #5E7089;"></span>ไม่ได้เชื่อมต่อ</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <details class="card p-4">
+          <summary class="font-bold text-sm cursor-pointer">คำอธิบายสัญลักษณ์</summary>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3 text-xs text-ink-2">
+            <div><span class="chip status-online mr-1">Online</span>VPS/พอร์ตเชื่อมต่อและทำงานปกติ</div>
+            <div><span class="chip status-warn mr-1">Warning</span>ทำงานอยู่แต่มีความเสี่ยงควรตรวจสอบ</div>
+            <div><span class="chip status-error mr-1">Loss</span>ขาดทุนหรือมีปัญหาต้องแก้ไข</div>
+            <div><span class="chip status-offline mr-1">Offline</span>ไม่ได้เชื่อมต่อ / หยุดใช้งาน</div>
+          </div>
+        </details>
+      </section>
+
+      <!-- DAILY LOG -->
+      <section id="tab-log" class="tab-panel space-y-4">
+        <div class="flex flex-wrap items-center gap-2 justify-between">
+          <div class="flex flex-wrap gap-2">
+            <select id="logFilterPortfolio" class="text-xs md:text-sm"></select>
+            <input type="date" id="logFilterFrom" class="text-xs md:text-sm">
+            <input type="date" id="logFilterTo" class="text-xs md:text-sm">
+          </div>
+          <button class="btn btn-primary text-xs md:text-sm" onclick="openLogModal()">+ บันทึกวันนี้</button>
+        </div>
+        <div class="card overflow-x-auto">
+          <table class="w-full text-xs md:text-sm" id="logTable"></table>
+        </div>
+      </section>
+
+      <!-- PORTFOLIO -->
+      <section id="tab-portfolio" class="tab-panel space-y-4">
+        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3" id="pfKpiRow"></div>
+
+        <div class="flex flex-wrap items-center gap-2 justify-between">
+          <div class="flex flex-wrap gap-1.5" id="pfFilterTabs"></div>
+          <div class="flex flex-wrap items-center gap-2">
+            <input type="text" id="pfSearch" placeholder="ค้นหา Portfolio..." class="text-xs md:text-sm w-40 md:w-56">
+            <div class="flex rounded-lg overflow-hidden border border-base-line">
+              <button id="pfViewTable" class="px-2.5 py-2 text-xs" onclick="setPfView('table')">☰</button>
+              <button id="pfViewGrid" class="px-2.5 py-2 text-xs" onclick="setPfView('grid')">▦</button>
+            </div>
+            <button class="btn btn-primary text-xs md:text-sm whitespace-nowrap" onclick="openPortfolioModal()">+ สร้าง Portfolio</button>
+          </div>
+        </div>
+
+        <div id="pfTableWrap" class="card overflow-x-auto">
+          <table class="w-full text-xs md:text-sm" id="pfTable"></table>
+        </div>
+        <div id="pfGridWrap" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+
+        <div class="flex items-center justify-between text-xs text-ink-3" id="pfPagination"></div>
+      </section>
+
+      <!-- VPS -->
+      <section id="tab-vps" class="tab-panel space-y-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="vpsKpiRow"></div>
+
+        <div class="flex flex-wrap items-center gap-2 justify-between">
+          <div class="flex flex-wrap gap-2">
+            <input type="text" id="vpsSearch" placeholder="ค้นหา VPS..." class="text-xs md:text-sm w-40 md:w-56">
+            <select id="vpsFilterStatus" class="text-xs md:text-sm">
+              <option value="">สถานะ: ทั้งหมด</option>
+              <option value="active">ใช้งานอยู่</option>
+              <option value="offline">หยุดใช้งาน</option>
+            </select>
+            <select id="vpsFilterProvider" class="text-xs md:text-sm">
+              <option value="">ผู้ให้บริการทั้งหมด</option>
+            </select>
+            <button class="btn btn-ghost text-xs md:text-sm" onclick="clearVpsFilters()">ล้างตัวกรอง</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex rounded-lg overflow-hidden border border-base-line">
+              <button id="vpsViewGrid" class="px-2.5 py-2 text-xs" onclick="setVpsView('grid')">▦</button>
+              <button id="vpsViewTable" class="px-2.5 py-2 text-xs" onclick="setVpsView('table')">☰</button>
+            </div>
+            <button class="btn btn-primary text-xs md:text-sm whitespace-nowrap" onclick="openVpsModal()">+ สร้าง VPS</button>
+          </div>
+        </div>
+
+        <div id="vpsTableWrap" class="card overflow-x-auto">
+          <table class="w-full text-xs md:text-sm" id="vpsTable"></table>
+        </div>
+        <div id="vpsGridWrap" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+
+        <div class="flex items-center justify-between text-xs text-ink-3" id="vpsPagination"></div>
+      </section>
+
+      <!-- EA -->
+      <section id="tab-ea" class="tab-panel space-y-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3" id="eaKpiRow"></div>
+
+        <div class="flex flex-wrap items-center gap-2 justify-between">
+          <div class="flex flex-wrap gap-2">
+            <input type="text" id="eaSearch" placeholder="ค้นหา EA..." class="text-xs md:text-sm w-40 md:w-56">
+            <select id="eaFilterStatus" class="text-xs md:text-sm">
+              <option value="">สถานะ: ทั้งหมด</option>
+              <option value="active">ใช้งานอยู่</option>
+              <option value="warning">เสี่ยงสูง</option>
+              <option value="paused">หยุดใช้งาน</option>
+            </select>
+            <select id="eaFilterDev" class="text-xs md:text-sm">
+              <option value="">ผู้พัฒนา: ทั้งหมด</option>
+            </select>
+            <button class="btn btn-ghost text-xs md:text-sm" onclick="clearEaFilters()">ล้างตัวกรอง</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex rounded-lg overflow-hidden border border-base-line">
+              <button id="eaViewTable" class="px-2.5 py-2 text-xs" onclick="setEaView('table')">☰</button>
+              <button id="eaViewGrid" class="px-2.5 py-2 text-xs" onclick="setEaView('grid')">▦</button>
+            </div>
+            <button class="btn btn-primary text-xs md:text-sm whitespace-nowrap" onclick="openEaModal()">+ สร้าง EA</button>
+          </div>
+        </div>
+
+        <div id="eaTableWrap" class="card overflow-x-auto">
+          <table class="w-full text-xs md:text-sm" id="eaTable"></table>
+        </div>
+        <div id="eaGridWrap" class="hidden grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
+
+        <div class="flex items-center justify-between text-xs text-ink-3" id="eaPagination"></div>
+      </section>
+
+      <!-- STATISTICS -->
+      <section id="tab-statistics" class="tab-panel space-y-4">
+        <div class="card p-3 flex flex-wrap items-center gap-2">
+          <div class="flex gap-1.5 flex-wrap" id="statsRangeButtons"></div>
+          <select id="statsFilterPortfolio" class="text-xs md:text-sm"></select>
+          <select id="statsFilterSymbol" class="text-xs md:text-sm"></select>
+          <select id="statsFilterVps" class="text-xs md:text-sm"></select>
+          <select id="statsFilterEa" class="text-xs md:text-sm"></select>
+          <button class="btn btn-ghost text-xs md:text-sm ml-auto" onclick="clearStatsFilters()">⟳ รีเซ็ตตัวกรอง</button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3" id="statsKpiRow"></div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-bold text-sm">Equity Curve</h2>
+              <span class="text-[11px] text-ink-3">Equity vs Balance</span>
+            </div>
+            <div id="statsEquityChart" class="overflow-x-auto"></div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-bold text-sm">กำไร / ขาดทุนรายวัน (USD)</h2>
+            </div>
+            <div id="statsDailyPlChart" class="overflow-x-auto"></div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h2 class="font-bold text-sm">Monthly Performance (USD)</h2>
+              <select id="statsYearSelect" class="text-xs"></select>
+            </div>
+            <div id="statsMonthlyChart" class="overflow-x-auto"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="card p-4 lg:col-span-1 overflow-x-auto">
+            <h2 class="font-bold text-sm mb-3">Performance by Portfolio</h2>
+            <table class="w-full text-xs" id="statsByPortfolioTable"></table>
+          </div>
+          <div class="card p-4">
+            <h2 class="font-bold text-sm mb-3">Win / Loss Analysis</h2>
+            <div class="flex items-center gap-4">
+              <div id="statsWinLossDonut" class="w-24 h-24 rounded-full shrink-0"></div>
+              <div class="flex-1 space-y-1.5 text-xs" id="statsWinLossLegend"></div>
+            </div>
+            <div class="flex items-center justify-between mt-4 pt-3 border-t border-base-line text-xs">
+              <div><div class="text-ink-3 text-[10px] mb-0.5">Best Win</div><div class="num text-mint font-semibold" id="statsBestWin">-</div></div>
+              <div class="text-right"><div class="text-ink-3 text-[10px] mb-0.5">Worst Loss</div><div class="num text-rose font-semibold" id="statsWorstLoss">-</div></div>
+            </div>
+          </div>
+          <div class="card p-4 overflow-x-auto">
+            <h2 class="font-bold text-sm mb-3">Performance Heatmap (กำไร %)</h2>
+            <div id="statsHeatmap"></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="card p-4 overflow-x-auto">
+            <h2 class="font-bold text-sm mb-3">Top 5 กำไรสูงสุด</h2>
+            <table class="w-full text-xs" id="statsTopWinTable"></table>
+          </div>
+          <div class="card p-4 overflow-x-auto">
+            <h2 class="font-bold text-sm mb-3">Top 5 ขาดทุนสูงสุด</h2>
+            <table class="w-full text-xs" id="statsTopLossTable"></table>
+          </div>
+          <div class="card p-4">
+            <h2 class="font-bold text-sm mb-3">Summary</h2>
+            <div class="space-y-2.5 text-sm" id="statsSummary"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="tab-settings" class="tab-panel space-y-5">
+        <div class="card p-4 md:p-5 space-y-3">
+          <h2 class="font-bold">สำรอง / กู้คืนข้อมูล</h2>
+          <p class="text-ink-3 text-xs md:text-sm">ข้อมูลทั้งหมดเก็บไว้ในเบราว์เซอร์ของอุปกรณ์นี้เท่านั้น แนะนำให้ Export เก็บไว้เป็นระยะ</p>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn btn-primary text-sm" onclick="exportExcel()">📊 Export Excel (เปิดใน Google Sheets)</button>
+            <button class="btn btn-ghost text-sm" onclick="exportData()">⬇ Export JSON (สำรองแบบเต็ม)</button>
+            <label class="btn btn-ghost text-sm cursor-pointer">
+              ⬆ Import JSON
+              <input type="file" id="importFile" accept="application/json" class="hidden">
+            </label>
+            <button class="btn btn-danger text-sm" onclick="resetData()">ล้างข้อมูลทั้งหมด</button>
+          </div>
+          <p class="text-ink-3 text-[11px] leading-relaxed">
+            <b>Export Excel</b> — ไฟล์ .xlsx แยกเป็นชีท VPS, Portfolio, EA, Daily Log และ Summary เปิดดูหรืออัปโหลดเข้า Google Sheets ได้ทันที (Google Drive → New → File upload หรือเปิดใน Google Sheets app แล้วเลือกไฟล์)<br>
+            <b>Export JSON</b> — ใช้สำหรับ Import กลับเข้าแอปนี้เพื่อกู้คืนข้อมูลทั้งหมดแบบเป๊ะๆ
+          </p>
+        </div>
+        <div class="card p-4 md:p-5 space-y-2">
+          <h2 class="font-bold">วิธีติดตั้งบน iPad</h2>
+          <ol class="text-ink-2 text-sm list-decimal pl-5 space-y-1">
+            <li>เปิดไฟล์นี้ด้วย Safari</li>
+            <li>แตะปุ่ม แชร์ (กล่องมีลูกศรชี้ขึ้น)</li>
+            <li>เลือก "เพิ่มไปยังหน้าจอโฮม"</li>
+            <li>เปิดแอปจากหน้าจอโฮมได้เหมือนแอปทั่วไป</li>
+          </ol>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- Bottom nav (mobile/portrait) -->
+<nav class="bottomnav fixed bottom-0 left-0 right-0 bg-base-panel border-t border-base-line px-2 py-1.5 justify-around z-20" style="display:none;">
+  <button data-tab="dashboard" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">📊</span>Dashboard</button>
+  <button data-tab="map" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">🗺️</span>Map</button>
+  <button data-tab="log" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">🧾</span>Log</button>
+  <button data-tab="portfolio" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">💼</span>Portfolio</button>
+  <button data-tab="vps" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">🖥️</span>VPS</button>
+  <button data-tab="ea" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">🤖</span>EA</button>
+  <button data-tab="statistics" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">📈</span>Stats</button>
+  <button data-tab="settings" class="navbtn-m flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-[10px]"><span class="text-lg leading-none">⚙️</span>Settings</button>
+</nav>
+
+<!-- Generic Modal -->
+<div id="modalBackdrop" class="modal-backdrop fixed inset-0 bg-black/60 z-30 items-end md:items-center justify-center p-0 md:p-6">
+  <div class="bg-base-panel border-t md:border border-base-line w-full md:max-w-lg md:rounded-2xl rounded-t-2xl max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center justify-between px-5 pt-5 pb-3 sticky top-0 bg-base-panel">
+      <h3 id="modalTitle" class="font-bold text-base"></h3>
+      <button onclick="closeModal()" class="text-ink-3 text-xl leading-none px-2">✕</button>
+    </div>
+    <div id="modalBody" class="px-5 pb-6 space-y-3"></div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div id="toastWrap" class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"></div>
+
+<script>
+/* ---------------- STATE ---------------- */
+const STORAGE_KEY = 'fpm_data_v1';
+const STARTING_CAPITAL = 10000;
+
+function seedData(){
+  const today = new Date();
+  const iso = d => d.toISOString().slice(0,10);
+  const d0 = iso(today);
+  const d1 = iso(new Date(today.getTime()-86400000));
+  const d2 = iso(new Date(today.getTime()-2*86400000));
+
+  const vpsList = [
+    {id:'vps1', name:'VPS #1', label:'Production', tag:'Primary', ip:'103.21.445.11', country:'ประเทศไทย', provider:'Cloudzy', cpu:'4 vCPU', ram:'8 GB', disk:'100 GB NVMe', cost:30, status:'online', uptime:'15 วัน'},
+    {id:'vps2', name:'VPS #2', label:'Trading', tag:'Active', ip:'103.21.445.12', country:'ประเทศไทย', provider:'DigitalOcean', cpu:'2 vCPU', ram:'4 GB', disk:'80 GB NVMe', cost:25, status:'online', uptime:'8 วัน'},
+    {id:'vps3', name:'VPS #3', label:'Backup', tag:'Active', ip:'103.21.445.13', country:'สิงคโปร์', provider:'Vultr', cpu:'2 vCPU', ram:'4 GB', disk:'60 GB NVMe', cost:20, status:'warn', uptime:'2 วัน', note:'High CPU 92%'},
+    {id:'vps4', name:'VPS #4', label:'Test Server', tag:'Offline', ip:'103.21.445.14', country:'เยอรมนี', provider:'Hetzner', cpu:'2 vCPU', ram:'4 GB', disk:'60 GB SSD', cost:25, status:'offline', uptime:'-'},
+  ];
+
+  const portfolios = [
+    {id:'p1', code:'#001', vpsId:'vps1', broker:'XM', account:'88888888', leverage:'1:100', ea:'GARAI v68', eaVersion:'v6.8', magic:'680001', symbol:'XAUUSD', symbolNote:'Gold', lot:'0.10', status:'online', badge:'active', favorite:false, monthlyTarget:2000, ddFromPeak:-8.50, startBalance:11888.89, balance:12456.78, winRate:67.5, trades:18, healthScore:83},
+    {id:'p2', code:'#002', vpsId:'vps2', broker:'XM', account:'99999999', leverage:'1:100', ea:'Orbit v2', eaVersion:'v2.0', magic:'220001', symbol:'GBPUSD', symbolNote:'Major', lot:'0.20', status:'online', badge:'active', favorite:true, monthlyTarget:1500, ddFromPeak:-6.20, startBalance:8322.22, balance:8754.32, winRate:61.5, trades:13, healthScore:79},
+    {id:'p3', code:'#003', vpsId:'vps3', broker:'ICMarkets', account:'77777777', leverage:'1:500', ea:'Scalper Pro', eaVersion:'v3.1', magic:'330001', symbol:'EURUSD', symbolNote:'Major', lot:'0.10', status:'online', badge:'warning', favorite:false, monthlyTarget:1200, ddFromPeak:-12.80, startBalance:5531.28, balance:5210.19, winRate:38.5, trades:12, healthScore:40},
+    {id:'p4', code:'#004', vpsId:'vps4', broker:'Exness', account:'66666666', leverage:'1:200', ea:'Night Hunter', eaVersion:'v1.5', magic:'440001', symbol:'XAUUSD', symbolNote:'Gold', lot:'0.10', status:'offline', badge:'loss', favorite:false, monthlyTarget:1000, ddFromPeak:-18.60, startBalance:9350.00, balance:9226.55, winRate:31.0, trades:9, healthScore:20},
+    {id:'p5', code:'#005', vpsId:'vps1', broker:'XM', account:'12345678', leverage:'1:100', ea:'EA Alpha', eaVersion:'v1.2', magic:'550001', symbol:'XAUUSD', symbolNote:'Gold', lot:'0.10', status:'online', badge:'active', favorite:false, monthlyTarget:1800, ddFromPeak:-7.30, startBalance:10020.00, balance:10230.34, winRate:58.0, trades:10, healthScore:63},
+    {id:'p6', code:'#006', vpsId:'vps2', broker:'ICMarkets', account:'98765432', leverage:'1:200', ea:'Grid Max', eaVersion:'v2.0', magic:'660001', symbol:'USDJPY', symbolNote:'Minor', lot:'0.10', status:'online', badge:'paused', favorite:false, monthlyTarget:1200, ddFromPeak:-5.10, startBalance:3210.00, balance:3210.00, winRate:0, trades:0, healthScore:39},
+  ];
+
+  const dailyLogs = [
+    {id:'l1', date:d0, portfolioId:'p1', startBalance:11888.89, endBalance:12456.78, maxFloatDD:2.10, winTrades:12, trades:18, winRate:67.5, healthScore:83, status:'online', note:'-'},
+    {id:'l2', date:d0, portfolioId:'p2', startBalance:8322.22, endBalance:8754.32, maxFloatDD:3.45, winTrades:8, trades:13, winRate:61.5, healthScore:79, status:'online', note:'-'},
+    {id:'l3', date:d0, portfolioId:'p3', startBalance:5531.28, endBalance:5210.19, maxFloatDD:5.82, winTrades:5, trades:12, winRate:38.5, healthScore:40, status:'error', note:'DD สูง'},
+    {id:'l4', date:d0, portfolioId:'p4', startBalance:9350.00, endBalance:9226.55, maxFloatDD:18.60, winTrades:3, trades:9, winRate:31.0, healthScore:20, status:'offline', note:'เชื่อมต่อไม่ได้'},
+    {id:'l4b', date:d0, portfolioId:'p5', startBalance:10020.00, endBalance:10230.34, maxFloatDD:7.30, winTrades:6, trades:10, winRate:58.0, healthScore:63, status:'online', note:'-'},
+    {id:'l4c', date:d0, portfolioId:'p6', startBalance:3210.00, endBalance:3210.00, maxFloatDD:5.10, winTrades:0, trades:0, winRate:0, healthScore:39, status:'online', note:'รอออเดอร์'},
+    {id:'l5', date:d1, portfolioId:'p1', startBalance:11500.00, endBalance:11888.89, maxFloatDD:1.80, winTrades:10, trades:15, winRate:65.0, healthScore:79, status:'online', note:'-'},
+    {id:'l6', date:d1, portfolioId:'p2', startBalance:8100.00, endBalance:8322.22, maxFloatDD:2.90, winTrades:7, trades:11, winRate:60.0, healthScore:73, status:'online', note:'-'},
+    {id:'l7', date:d2, portfolioId:'p1', startBalance:11200.00, endBalance:11500.00, maxFloatDD:1.50, winTrades:9, trades:14, winRate:64.0, healthScore:77, status:'online', note:'-'},
+  ];
+
+  const eaList = [
+    {id:'ea1', name:'GARAI v68', developer:'GARAI Team', risk:'medium', lot:0.01, recovery:'Step Recovery', status:'active', conditions:['Trend: EMA20 > EMA50 (H1)','ADX > 18','RSI 40 - 70','Spread < 20','No news filter']},
+    {id:'ea2', name:'Orbit v2', developer:'Orbit Trading', risk:'medium', lot:0.02, recovery:'Grid Recovery', status:'active', conditions:['Breakout of Structure (M15)','ATR Filter','No High Impact News','Session: London/NY']},
+    {id:'ea3', name:'Scalper Pro', developer:'MarketTech', risk:'high', lot:0.01, recovery:'Aggressive', status:'warning', conditions:['Spread < 25','Trading Session: London, NY','Max DD < 10%','Min balance $500']},
+    {id:'ea4', name:'Night Hunter', developer:'NH Systems', risk:'high', lot:0.03, recovery:'Step Recovery', status:'active', conditions:['News Trading','Momentum Confirm (M5)','Time Filter 20:00 - 02:00','Volatility > avg']},
+    {id:'ea5', name:'EA Alpha', developer:'Alpha Labs', risk:'low', lot:0.01, recovery:'None', status:'active', conditions:['EMA Crossover (M30)','No Martingale','Max DD < 15%','Fixed lot only']},
+    {id:'ea6', name:'Grid Max', developer:'Grid Systems', risk:'medium', lot:0.02, recovery:'Grid Recovery', status:'paused', conditions:['Sideway Market','Range Filter','Max DD < 12%','Grid step 15 pips']},
+  ];
+
+  return { vpsList, portfolios, dailyLogs, eaList };
+}
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  const seeded = seedData();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(seeded));
+  return seeded;
+}
+function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+let state = loadData();
+if(!state.eaList){ state.eaList = seedData().eaList; saveDataSilent(); }
+function saveDataSilent(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){} }
+
+/* ---------------- HELPERS ---------------- */
+const fmt = n => (n<0?'-':'') + '$' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct = n => (n>0?'+':'') + n.toFixed(2) + '%';
+const uid = () => 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const statusLabel = s => ({online:'รันปกติ',warn:'เตือน',error:'ปัญหา',offline:'ออฟไลน์'}[s]||s);
+const statusChipClass = s => 'chip status-'+s;
+const dotColor = s => ({online:'#2FD98A',warn:'#F0A93B',error:'#F1546B',offline:'#5E7089'}[s]||'#5E7089');
+function vpsById(id){ return state.vpsList.find(v=>v.id===id); }
+function portfolioById(id){ return state.portfolios.find(p=>p.id===id); }
+
+function asOf(){
+  const el = document.getElementById('asOfDate');
+  return el.value || new Date().toISOString().slice(0,10);
+}
+function initDate(){
+  const el = document.getElementById('asOfDate');
+  const dates = state.dailyLogs.map(l=>l.date).sort();
+  el.value = dates.length ? dates[dates.length-1] : new Date().toISOString().slice(0,10);
+}
+function showToast(msg, kind){
+  const wrap = document.getElementById('toastWrap');
+  const el = document.createElement('div');
+  el.className = 'toast-item ' + (kind||'success');
+  el.innerHTML = `<span class="toast-dot"></span><span>${msg}</span>`;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(6px)'; setTimeout(()=>el.remove(), 250); }, 2200);
+}
+function showConfirm(message, onYes, opts){
+  opts = opts || {};
+  openModal(opts.title || 'ยืนยันการทำรายการ', `
+    <p class="text-sm text-ink-2 mb-4">${message}</p>
+    <div class="flex gap-2">
+      <button class="btn ${opts.danger===false?'btn-primary':'btn-danger'} flex-1" id="confirmYesBtn">${opts.confirmLabel||'ยืนยัน ลบ'}</button>
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    </div>
+  `);
+  document.getElementById('confirmYesBtn').onclick = ()=>{ closeModal(); onYes(); };
+}
+
+/* ---------------- NAV ---------------- */
+const titles = {
+  dashboard: ['Dashboard','สรุปผลการดำเนินงานของทุกพอร์ต'],
+  map: ['Portfolio Map','ภาพรวมความเชื่อมโยงของระบบทั้งหมด'],
+  log: ['Daily Log','บันทึกผลการเทรดรายวัน'],
+  portfolio: ['Portfolio','จัดการ Portfolio ทั้งหมดของคุณ'],
+  vps: ['VPS','จัดการ VPS ทั้งหมดของคุณ'],
+  ea: ['EA','จัดการ Expert Advisor ทั้งหมดของคุณ'],
+  statistics: ['Statistics','ภาพรวมผลการดำเนินงานทั้งหมด'],
+  settings: ['Settings','ตั้งค่าและสำรองข้อมูล'],
+};
+function switchTab(tab){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  document.querySelectorAll('.navbtn,.navbtn-m').forEach(b=>{
+    const on = b.dataset.tab===tab;
+    b.classList.toggle('bg-base-panel2', on);
+    b.style.background = on ? '#1A2431' : '';
+    b.style.color = on ? '#EAF0F7' : '';
+  });
+  document.getElementById('pageTitle').textContent = titles[tab][0];
+  document.getElementById('pageSub').textContent = titles[tab][1];
+  renderAll();
+}
+document.querySelectorAll('.navbtn,.navbtn-m').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
+document.getElementById('refreshBtn').addEventListener('click',renderAll);
+document.getElementById('asOfDate').addEventListener('change',renderAll);
+
+/* ---------------- RENDER: DASHBOARD ---------------- */
+function computeKpis(){
+  const day = asOf();
+  const dayLogs = state.dailyLogs.filter(l=>l.date===day);
+  const todayProfit = dayLogs.reduce((s,l)=>s+(l.endBalance-l.startBalance),0);
+  const todayStartSum = dayLogs.reduce((s,l)=>s+l.startBalance,0) || 1;
+  const todayPct = todayStartSum ? (todayProfit/todayStartSum*100) : 0;
+
+  const weekFrom = new Date(new Date(day).getTime()-6*86400000).toISOString().slice(0,10);
+  const weekLogs = state.dailyLogs.filter(l=>l.date>=weekFrom && l.date<=day);
+  const weekProfit = weekLogs.reduce((s,l)=>s+(l.endBalance-l.startBalance),0);
+
+  const monthFrom = day.slice(0,7)+'-01';
+  const monthLogs = state.dailyLogs.filter(l=>l.date>=monthFrom && l.date<=day);
+  const monthProfit = monthLogs.reduce((s,l)=>s+(l.endBalance-l.startBalance),0);
+
+  const maxDD = state.dailyLogs.length ? Math.max(...state.dailyLogs.map(l=>l.maxFloatDD)) : 0;
+  const winRates = dayLogs.length?dayLogs:state.dailyLogs;
+  const avgWinRate = winRates.length ? winRates.reduce((s,l)=>s+l.winRate,0)/winRates.length : 0;
+
+  const activePortfolios = state.portfolios.filter(p=>p.status!=='offline').length;
+  const totalPortfolios = state.portfolios.length;
+  const avgHealth = state.portfolios.length ? Math.round(state.portfolios.reduce((s,p)=>s+p.healthScore,0)/state.portfolios.length) : 0;
+
+  return {todayProfit, todayPct, weekProfit, monthProfit, maxDD, avgWinRate, activePortfolios, totalPortfolios, avgHealth};
+}
+
+function renderKpis(){
+  const k = computeKpis();
+  const cards = [
+    {label:'กำไรรวมวันนี้', value:fmt(k.todayProfit), sub:pct(k.todayPct), good:k.todayProfit>=0},
+    {label:'กำไรรวมสัปดาห์นี้', value:fmt(k.weekProfit), sub:'7 วันล่าสุด', good:k.weekProfit>=0},
+    {label:'กำไรรวมเดือนนี้', value:fmt(k.monthProfit), sub:'เดือนนี้', good:k.monthProfit>=0},
+    {label:'Max Drawdown', value:'-'+k.maxDD.toFixed(2)+'%', sub:'จาก Equity Peak', good:false, isDD:true},
+    {label:'Win Rate เฉลี่ย', value:k.avgWinRate.toFixed(2)+'%', sub:'ทุกพอร์ต', good:true},
+    {label:'พอร์ตที่กำลังรัน', value:k.activePortfolios+' / '+k.totalPortfolios, sub:'ออนไลน์', good:true},
+    {label:'Health Score เฉลี่ย', value:k.avgHealth, sub:'คะแนน', good:k.avgHealth>=70},
+  ];
+  const row = document.getElementById('kpiRow');
+  row.innerHTML = cards.map(c=>`
+    <div class="card p-4">
+      <div class="text-[11px] text-ink-3 mb-1.5">${c.label}</div>
+      <div class="text-lg md:text-xl font-extrabold num ${c.isDD?'text-rose':(c.good?'text-mint':'text-rose')}">${c.value}</div>
+      <div class="text-[11px] text-ink-3 mt-1">${c.sub}</div>
+    </div>
+  `).join('');
+}
+
+function renderMapPreview(){
+  const wrap = document.getElementById('mapPreview');
+  const vpsWithPf = state.vpsList;
+  if(!vpsWithPf.length || !state.portfolios.length){
+    wrap.innerHTML = '<div class="text-ink-3 text-sm">ยังไม่มีพอร์ต</div>';
+    return;
+  }
+  const vpsNodes = vpsWithPf.map(v=>{
+    const n = vpsPortfolioCount(v.id);
+    return `<div id="mapvps-${v.id}" class="flow-node px-3 py-2.5 flex items-center gap-2.5">
+      <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${dotColor(v.status)}"></span>
+      <div class="min-w-0">
+        <div class="text-xs font-semibold truncate">${v.name}</div>
+        <div class="text-[10px] text-ink-3 truncate">${n} portfolio${n===1?'':'s'}</div>
+      </div>
+    </div>`;
+  }).join('');
+  const pfNodes = vpsWithPf.flatMap(v=>state.portfolios.filter(p=>p.vpsId===v.id)).map(p=>{
+    return `<div id="mappf-${p.id}" class="flow-node px-3 py-2.5 flex items-center gap-2 flex-wrap">
+      <span class="w-2 h-2 rounded-full shrink-0" style="background:${dotColor(p.status)}"></span>
+      <span class="text-xs font-semibold truncate">${p.ea}</span>
+      <span class="text-ink-3 text-[10px] font-mono">${p.symbol}</span>
+      <span class="ml-auto ${statusChipClass(p.status)}">${statusLabel(p.status)}</span>
+    </div>`;
+  }).join('');
+  wrap.innerHTML = `<div class="relative">
+    <svg id="mapFlowSvg" class="absolute inset-0 w-full h-full" style="pointer-events:none;"></svg>
+    <div class="relative z-10 grid grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)] gap-x-8 gap-y-2.5">
+      <div class="flex flex-col justify-around gap-2.5">${vpsNodes}</div>
+      <div class="flex flex-col gap-2">${pfNodes}</div>
+    </div>
+  </div>`;
+  requestAnimationFrame(drawMapFlowLines);
+}
+function drawMapFlowLines(){
+  const svg = document.getElementById('mapFlowSvg');
+  if(!svg) return;
+  const container = svg.parentElement;
+  const rect = container.getBoundingClientRect();
+  if(!rect.width || !rect.height) return;
+  svg.setAttribute('width', rect.width);
+  svg.setAttribute('height', rect.height);
+  svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+  svg.innerHTML = '';
+  state.portfolios.forEach(p=>{
+    const vNode = document.getElementById('mapvps-'+p.vpsId);
+    const pNode = document.getElementById('mappf-'+p.id);
+    if(!vNode || !pNode) return;
+    const vr = vNode.getBoundingClientRect(), pr = pNode.getBoundingClientRect();
+    const x1 = vr.right - rect.left, y1 = vr.top + vr.height/2 - rect.top;
+    const x2 = pr.left - rect.left, y2 = pr.top + pr.height/2 - rect.top;
+    const midX = (x1+x2)/2;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`);
+    path.setAttribute('stroke', dotColor(p.status));
+    path.setAttribute('stroke-width','1.5');
+    path.setAttribute('fill','none');
+    path.setAttribute('opacity','0.5');
+    svg.appendChild(path);
+  });
+}
+window.addEventListener('resize', ()=>{ try{ drawMapFlowLines(); }catch(e){} });
+
+
+function renderStatusDonut(){
+  const counts = {online:0,warn:0,error:0,offline:0};
+  state.portfolios.forEach(p=>counts[p.status]=(counts[p.status]||0)+1);
+  const total = state.portfolios.length || 1;
+  const order = ['online','warn','error','offline'];
+  let acc = 0;
+  const stops = order.map(k=>{
+    const frac = counts[k]/total;
+    const start = acc*360, end = (acc+frac)*360;
+    acc += frac;
+    return `${dotColor(k)} ${start}deg ${end}deg`;
+  }).join(', ');
+  const donut = document.getElementById('statusDonut');
+  donut.style.background = `conic-gradient(${stops})`;
+  donut.innerHTML = `<div class="w-full h-full rounded-full flex items-center justify-center" style="background:radial-gradient(closest-side, #111823 62%, transparent 63%);">
+    <div class="text-center"><div class="text-lg font-extrabold num">${state.portfolios.length}</div><div class="text-[10px] text-ink-3">พอร์ต</div></div>
+  </div>`;
+  document.getElementById('statusLegend').innerHTML = order.map(k=>`
+    <div class="flex items-center justify-between">
+      <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full" style="background:${dotColor(k)}"></span>${statusLabel(k)}</span>
+      <span class="num font-semibold">${counts[k]||0}</span>
+    </div>`).join('');
+}
+
+function renderRecentLog(){
+  const rows = [...state.dailyLogs].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  const head = `<thead><tr class="text-ink-3 text-left border-b border-base-line">
+    <th class="py-2 pr-3 font-medium">วันที่</th><th class="py-2 pr-3 font-medium">พอร์ต</th>
+    <th class="py-2 pr-3 font-medium">Daily Profit</th><th class="py-2 pr-3 font-medium">%</th>
+    <th class="py-2 pr-3 font-medium">สถานะ</th></tr></thead>`;
+  const body = rows.map(l=>{
+    const p = portfolioById(l.portfolioId);
+    const profit = l.endBalance-l.startBalance;
+    const pctv = l.startBalance? profit/l.startBalance*100:0;
+    return `<tr class="border-b border-base-line/60">
+      <td class="py-2 pr-3 num text-ink-2">${l.date}</td>
+      <td class="py-2 pr-3 font-medium">${p?p.ea:'-'}</td>
+      <td class="py-2 pr-3 num ${profit>=0?'text-mint':'text-rose'}">${fmt(profit)}</td>
+      <td class="py-2 pr-3 num ${pctv>=0?'text-mint':'text-rose'}">${pct(pctv)}</td>
+      <td class="py-2 pr-3"><span class="${statusChipClass(l.status)}">${statusLabel(l.status)}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('recentLogTable').innerHTML = head + '<tbody>'+(body||'<tr><td class="py-3 text-ink-3" colspan="5">ยังไม่มีบันทึก</td></tr>')+'</tbody>';
+}
+
+/* ---------------- RENDER: PORTFOLIO MAP (full, 4-column flow chart) ---------------- */
+let mapZoomLevel = 1;
+function mapZoom(delta){
+  mapZoomLevel = Math.max(0.5, Math.min(1.5, +(mapZoomLevel+delta).toFixed(2)));
+  applyMapZoom();
+}
+function mapZoomReset(){ mapZoomLevel = 1; applyMapZoom(); }
+function applyMapZoom(){
+  const el = document.getElementById('mapDiagramInner');
+  if(el) el.style.transform = 'scale('+mapZoomLevel+')';
+  const lbl = document.getElementById('mapZoomLabel');
+  if(lbl) lbl.textContent = Math.round(mapZoomLevel*100)+'%';
+}
+function mapToggleFullscreen(){
+  const el = document.getElementById('mapDiagramWrap');
+  if(!document.fullscreenElement){ el.requestFullscreen?.().catch(()=>{}); }
+  else { document.exitFullscreen?.(); }
+}
+function toggleMapManageMenu(){ document.getElementById('mapManageMenu').classList.toggle('hidden'); }
+function closeMapManageMenu(){ document.getElementById('mapManageMenu').classList.add('hidden'); }
+document.addEventListener('click', e=>{
+  const menu = document.getElementById('mapManageMenu');
+  if(menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && e.target.getAttribute('onclick')!=='toggleMapManageMenu()'){
+    menu.classList.add('hidden');
+  }
+});
+
+function currencyFlag(symbol){
+  const map = {XAU:'🥇', XAG:'⚪', USD:'🇺🇸', EUR:'🇪🇺', GBP:'🇬🇧', JPY:'🇯🇵', CAD:'🇨🇦', AUD:'🇦🇺', NZD:'🇳🇿', CHF:'🇨🇭'};
+  const base = (symbol||'').slice(0,3).toUpperCase();
+  return map[base] || '💱';
+}
+function mapEaMeta(p){
+  const match = state.eaList.find(e=>e.name===p.ea);
+  return match ? (match.recovery || '') : '';
+}
+function mapSystemHasIssue(){
+  return state.vpsList.some(v=>v.status==='offline') || state.portfolios.some(p=>p.badge==='loss'||p.badge==='warning');
+}
+function getMapProblemNodeIds(){
+  const vpsIds = state.vpsList.filter(v=>v.status==='offline').map(v=>'mapv-'+v.id);
+  const problemPortfolios = state.portfolios.filter(p=>p.badge==='loss'||p.badge==='warning'||p.status==='offline'||p.status==='error');
+  const pfIds = problemPortfolios.map(p=>'mapfp-'+p.id);
+  const eaIds = problemPortfolios.map(p=>'mapea-'+p.id);
+  return [...vpsIds, ...pfIds, ...eaIds];
+}
+function scrollToMapIssues(){
+  const ids = getMapProblemNodeIds();
+  if(!ids.length){ showToast('ไม่พบรายการที่มีปัญหาแล้วในตอนนี้'); return; }
+  document.getElementById('mapDiagramWrap').scrollIntoView({behavior:'smooth', block:'start'});
+  setTimeout(()=>{
+    const first = document.getElementById(ids[0]);
+    if(first) first.scrollIntoView({behavior:'smooth', block:'center', inline:'center'});
+    ids.forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      el.classList.add('map-issue-pulse');
+      setTimeout(()=>el.classList.remove('map-issue-pulse'), 3000);
+    });
+  }, 350);
+  showToast(`พบ ${new Set(ids.map(i=>i.split('-')[1])).size} รายการที่มีปัญหา`, 'warn');
+}
+function renderMapKpis(){
+  const symbolCount = new Set(state.portfolios.map(p=>p.symbol).filter(Boolean)).size;
+  let edges = 0;
+  state.portfolios.forEach(p=>{ edges += (p.vpsId?1:0) + 1 + 1; });
+  const issue = mapSystemHasIssue();
+  const cards = [
+    {icon:'🖥️', label:'VPS ทั้งหมด', value:state.vpsList.length, sub:'เครื่อง'},
+    {icon:'💼', label:'Portfolio ทั้งหมด', value:state.portfolios.length, sub:'พอร์ต'},
+    {icon:'🤖', label:'EA ทั้งหมด', value:state.eaList.length, sub:'EA'},
+    {icon:'💱', label:'คู่เงินทั้งหมด', value:symbolCount, sub:'คู่เงิน'},
+    {icon:'🔗', label:'การเชื่อมต่อทั้งหมด', value:edges, sub:'รายการ'},
+    {icon: issue?'⚠️':'💚', label:'สถานะระบบ', value: issue?'มีปัญหา':'ปกติ',
+     sub: issue?'แตะเพื่อดูรายการที่มีปัญหา →':'ทุกระบบทำงานปกติ', color: issue?'#F1546B':'#2FD98A',
+     clickable: issue},
+  ];
+  document.getElementById('mapKpiRow').innerHTML = cards.map(c=>`
+    <div class="card p-4${c.clickable?' map-issue-card':''}" ${c.clickable?'onclick="scrollToMapIssues()" role="button" tabindex="0"':''}>
+      <div class="text-[11px] text-ink-3 mb-1.5">${c.icon} ${c.label}</div>
+      <div class="text-lg md:text-xl font-extrabold num" style="color:${c.color||'#EAF0F7'}">${c.value}</div>
+      <div class="text-[11px] mt-1" style="color:${c.clickable?'#F1546B':'#5E7089'}">${c.sub}</div>
+    </div>`).join('');
+}
+
+function mapMatchesFilters(searchText, statusVal, texts, statusKey){
+  let ok = true;
+  if(searchText){ ok = texts.toLowerCase().includes(searchText); }
+  if(ok && statusVal){
+    if(statusVal==='active') ok = statusKey==='online';
+    else if(statusVal==='warning') ok = statusKey==='warn'||statusKey==='error';
+    else if(statusVal==='offline') ok = statusKey==='offline';
+  }
+  return ok;
+}
+function renderMapDiagram(){
+  const inner = document.getElementById('mapDiagramInner');
+  if(!state.vpsList.length && !state.portfolios.length){
+    inner.innerHTML = '<div class="text-ink-3 text-sm py-10 text-center">ยังไม่มีข้อมูล VPS หรือ Portfolio</div>';
+    return;
+  }
+  const search = (document.getElementById('mapSearch').value||'').trim().toLowerCase();
+  const statusVal = document.getElementById('mapFilterStatus').value;
+
+  const orderedPortfolios = [...state.vpsList.map(v=>v.id), null].flatMap(vid=>state.portfolios.filter(p=>(p.vpsId||null)===vid));
+  const symbols = [...new Set(orderedPortfolios.map(p=>p.symbol).filter(Boolean))];
+
+  const vpsHtml = state.vpsList.map(v=>{
+    const texts = [v.name,v.label,v.ip,v.provider].join(' ');
+    const match = mapMatchesFilters(search, statusVal, texts, v.status);
+    return `<div id="mapv-${v.id}" class="flow-node px-3 py-2.5" style="opacity:${match?1:0.28}">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-base shrink-0">🖥️</span>
+          <div class="min-w-0">
+            <div class="text-xs font-semibold truncate">${v.name}</div>
+            <div class="text-[10px] text-ink-3 truncate">${v.label||''}</div>
+          </div>
+        </div>
+        <button class="text-ink-3 text-xs px-1" onclick="openVpsModal('${v.id}')">•••</button>
+      </div>
+      <div class="text-[10px] text-ink-3 num mt-1">${v.ip}</div>
+      <div class="text-[10px] font-semibold mt-0.5" style="color:${v.status==='offline'?'#F1546B':'#2FD98A'}">${v.status==='offline'?'Offline':'Online'}</div>
+    </div>`;
+  }).join('');
+
+  const pfHtml = orderedPortfolios.map(p=>{
+    const texts = [p.ea,p.broker,p.account,p.symbol].join(' ');
+    const match = mapMatchesFilters(search, statusVal, texts, p.status);
+    return `<div id="mapfp-${p.id}" class="flow-node px-3 py-2.5" style="opacity:${match?1:0.28}">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="text-base shrink-0">💼</span>
+          <div class="min-w-0">
+            <div class="text-xs font-semibold truncate">${p.ea} Account</div>
+            <div class="text-[10px] text-ink-3 truncate">${p.broker||'-'} ${p.account||''}</div>
+          </div>
+        </div>
+        <button class="text-ink-3 text-xs px-1" onclick="openPortfolioModal('${p.id}')">•••</button>
+      </div>
+      <div class="text-[10px] num mt-1">Balance ${fmt(p.balance||0)}</div>
+    </div>`;
+  }).join('');
+
+  const eaHtml = orderedPortfolios.map(p=>{
+    const texts = [p.ea,p.eaVersion,p.magic].join(' ');
+    const match = mapMatchesFilters(search, statusVal, texts, p.status);
+    return `<div id="mapea-${p.id}" class="flow-node px-3 py-2.5" style="opacity:${match?1:0.28}">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-base shrink-0">🤖</span>
+        <div class="min-w-0">
+          <div class="text-xs font-semibold truncate">${p.ea}</div>
+          <div class="text-[10px] text-ink-3 truncate">${mapEaMeta(p)||p.eaVersion||''}</div>
+        </div>
+      </div>
+      <div class="text-[10px] text-ink-3 num mt-1">Magic: ${p.magic||'-'}</div>
+    </div>`;
+  }).join('');
+
+  const symHtml = symbols.map(sym=>{
+    const count = orderedPortfolios.filter(p=>p.symbol===sym).length;
+    const rep = orderedPortfolios.find(p=>p.symbol===sym);
+    const match = mapMatchesFilters(search, statusVal, sym, rep?rep.status:'online');
+    return `<div id="mapsym-${sym}" class="flow-node px-3 py-2.5" style="opacity:${match?1:0.28}">
+      <div class="flex items-center gap-2">
+        <span class="text-base shrink-0">${currencyFlag(sym)}</span>
+        <div class="min-w-0">
+          <div class="text-xs font-semibold truncate">${sym}</div>
+          <div class="text-[10px] text-ink-3 truncate">${rep?rep.symbolNote||'':''}</div>
+        </div>
+      </div>
+      <div class="text-[10px] text-sky font-medium mt-1">${count} EA</div>
+    </div>`;
+  }).join('');
+
+  const colHeader = (label, style) => `<div class="chip inline-block mb-2.5" style="${style}">${label}</div>`;
+  inner.innerHTML = `<div class="relative">
+    <svg id="mapFullSvg" class="absolute inset-0 w-full h-full" style="pointer-events:none;"></svg>
+    <div class="relative z-10 grid gap-x-8" style="grid-template-columns: repeat(4, 220px);">
+      <div>${colHeader('VPS','background:rgba(58,169,240,.15);color:#3AA9F0;')}<div class="flex flex-col gap-2.5">${vpsHtml || '<div class="text-ink-3 text-xs">ไม่มี VPS</div>'}</div></div>
+      <div>${colHeader('Portfolio','background:rgba(47,217,138,.15);color:#2FD98A;')}<div class="flex flex-col gap-2.5">${pfHtml || '<div class="text-ink-3 text-xs">ไม่มี Portfolio</div>'}</div></div>
+      <div>${colHeader('EA','background:rgba(124,108,240,.15);color:#7C6CF0;')}<div class="flex flex-col gap-2.5">${eaHtml || '<div class="text-ink-3 text-xs">ไม่มี EA</div>'}</div></div>
+      <div>${colHeader('Currency Pairs','background:rgba(240,169,59,.15);color:#F0A93B;')}<div class="flex flex-col gap-2.5">${symHtml || '<div class="text-ink-3 text-xs">ไม่มีคู่เงิน</div>'}</div></div>
+    </div>
+  </div>`;
+  applyMapZoom();
+  requestAnimationFrame(drawMapFullLines);
+}
+function edgeColor(status){
+  if(status==='offline') return '#5E7089';
+  if(status==='warn'||status==='error') return '#F0A93B';
+  return '#2FD98A';
+}
+function drawMapFullLines(){
+  const svg = document.getElementById('mapFullSvg');
+  if(!svg) return;
+  const container = svg.parentElement;
+  const rect = container.getBoundingClientRect();
+  if(!rect.width || !rect.height) return;
+  svg.setAttribute('width', rect.width);
+  svg.setAttribute('height', rect.height);
+  svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+  svg.innerHTML = '';
+  function connect(fromId, toId, color){
+    const a = document.getElementById(fromId), b = document.getElementById(toId);
+    if(!a || !b) return;
+    const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect();
+    const x1 = ar.right - rect.left, y1 = ar.top + ar.height/2 - rect.top;
+    const x2 = br.left - rect.left, y2 = br.top + br.height/2 - rect.top;
+    const midX = (x1+x2)/2;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`);
+    path.setAttribute('stroke', color);
+    path.setAttribute('stroke-width','1.5');
+    path.setAttribute('fill','none');
+    path.setAttribute('opacity','0.55');
+    svg.appendChild(path);
+  }
+  state.portfolios.forEach(p=>{
+    const c = edgeColor(p.status);
+    if(p.vpsId) connect('mapv-'+p.vpsId, 'mapfp-'+p.id, c);
+    connect('mapfp-'+p.id, 'mapea-'+p.id, c);
+    if(p.symbol) connect('mapea-'+p.id, 'mapsym-'+p.symbol, c);
+  });
+}
+window.addEventListener('resize', ()=>{ try{ drawMapFullLines(); }catch(e){} });
+
+function renderMapSidebar(){
+  let edges = 0, green=0, amber=0, red=0;
+  state.portfolios.forEach(p=>{
+    const n = (p.vpsId?1:0) + 1 + (p.symbol?1:0);
+    edges += n;
+    const c = edgeColor(p.status);
+    if(c==='#2FD98A') green+=n; else if(c==='#F0A93B') amber+=n; else red+=n;
+  });
+  const total = edges || 1;
+  const donut = document.getElementById('mapConnDonut');
+  const gDeg = green/total*360, aDeg = amber/total*360;
+  donut.style.background = `conic-gradient(#2FD98A 0deg ${gDeg}deg, #F0A93B ${gDeg}deg ${gDeg+aDeg}deg, #F1546B ${gDeg+aDeg}deg 360deg)`;
+  donut.innerHTML = `<div class="w-full h-full rounded-full flex items-center justify-center" style="background:radial-gradient(closest-side, #111823 60%, transparent 61%);">
+    <div class="text-center"><div class="text-sm font-extrabold num">${edges}</div><div class="text-[9px] text-ink-3">รายการ</div></div></div>`;
+  document.getElementById('mapConnLegend').innerHTML = `
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#2FD98A"></span>ใช้งานอยู่</span><span class="num font-semibold">${green} (${(green/total*100).toFixed(1)}%)</span></div>
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#F0A93B"></span>เตือน</span><span class="num font-semibold">${amber} (${(amber/total*100).toFixed(1)}%)</span></div>
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#F1546B"></span>ไม่ได้เชื่อมต่อ</span><span class="num font-semibold">${red} (${(red/total*100).toFixed(1)}%)</span></div>`;
+
+  const activeV = state.vpsList.filter(v=>v.status==='online').length;
+  const warnV = state.vpsList.filter(v=>v.status==='warn').length;
+  const offV = state.vpsList.filter(v=>v.status==='offline'||v.status==='error').length;
+  document.getElementById('mapVpsStatusList').innerHTML = `
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#2FD98A"></span>ใช้งานอยู่</span><span class="num font-semibold">${activeV} เครื่อง</span></div>
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#F0A93B"></span>เตือน</span><span class="num font-semibold">${warnV} เครื่อง</span></div>
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#F1546B"></span>ออฟไลน์</span><span class="num font-semibold">${offV} เครื่อง</span></div>`;
+
+  const counts = {};
+  state.portfolios.forEach(p=>{ if(p.symbol) counts[p.symbol] = (counts[p.symbol]||0)+1; });
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const maxC = entries.length ? entries[0][1] : 1;
+  document.getElementById('mapSymbolDist').innerHTML = entries.map(([sym,c])=>`
+    <div>
+      <div class="flex items-center justify-between text-[11px] mb-1"><span>${sym}</span><span class="text-ink-3 num">${c} EA</span></div>
+      <div class="w-full h-1.5 rounded-full" style="background:#212C3B;"><div class="h-1.5 rounded-full" style="width:${(c/maxC*100)}%;background:#3AA9F0;"></div></div>
+    </div>`).join('') || '<div class="text-ink-3 text-xs">ยังไม่มีข้อมูล</div>';
+}
+
+function renderMapFull(){
+  renderMapKpis();
+  renderMapDiagram();
+  renderMapSidebar();
+}
+['mapSearch','mapFilterStatus'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', renderMapDiagram);
+  document.getElementById(id).addEventListener('change', renderMapDiagram);
+});
+
+/* ---------------- RENDER: DAILY LOG ---------------- */
+
+/* ---------------- RENDER: DAILY LOG ---------------- */
+function fillLogFilters(){
+  const sel = document.getElementById('logFilterPortfolio');
+  sel.innerHTML = '<option value="">ทุกพอร์ต</option>' + state.portfolios.map(p=>`<option value="${p.id}">${p.ea} (${p.symbol})</option>`).join('');
+}
+function renderLogTable(){
+  const pf = document.getElementById('logFilterPortfolio').value;
+  const from = document.getElementById('logFilterFrom').value;
+  const to = document.getElementById('logFilterTo').value;
+  let rows = [...state.dailyLogs];
+  if(pf) rows = rows.filter(l=>l.portfolioId===pf);
+  if(from) rows = rows.filter(l=>l.date>=from);
+  if(to) rows = rows.filter(l=>l.date<=to);
+  rows.sort((a,b)=>b.date.localeCompare(a.date));
+
+  const head = `<thead><tr class="text-ink-3 text-left border-b border-base-line">
+    <th class="py-2.5 px-3 font-medium">วันที่</th><th class="py-2.5 px-3 font-medium">พอร์ต</th>
+    <th class="py-2.5 px-3 font-medium">VPS</th><th class="py-2.5 px-3 font-medium">เริ่มต้น</th>
+    <th class="py-2.5 px-3 font-medium">สิ้นสุด</th><th class="py-2.5 px-3 font-medium">Profit</th>
+    <th class="py-2.5 px-3 font-medium">%</th><th class="py-2.5 px-3 font-medium">Max DD</th>
+    <th class="py-2.5 px-3 font-medium">Win Rate</th><th class="py-2.5 px-3 font-medium">Trades</th>
+    <th class="py-2.5 px-3 font-medium">Health</th><th class="py-2.5 px-3 font-medium">สถานะ</th>
+    <th class="py-2.5 px-3 font-medium"></th></tr></thead>`;
+
+  const body = rows.map(l=>{
+    const p = portfolioById(l.portfolioId);
+    const v = p ? vpsById(p.vpsId) : null;
+    const profit = l.endBalance-l.startBalance;
+    const pctv = l.startBalance? profit/l.startBalance*100:0;
+    return `<tr class="border-b border-base-line/60">
+      <td class="py-2.5 px-3 num text-ink-2 whitespace-nowrap">${l.date}</td>
+      <td class="py-2.5 px-3 font-medium whitespace-nowrap">${p?p.ea:'-'}</td>
+      <td class="py-2.5 px-3 text-ink-2 whitespace-nowrap">${v?v.name:'-'}</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap">${fmt(l.startBalance)}</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap">${fmt(l.endBalance)}</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap ${profit>=0?'text-mint':'text-rose'}">${fmt(profit)}</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap ${pctv>=0?'text-mint':'text-rose'}">${pct(pctv)}</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap text-amber">${l.maxFloatDD.toFixed(2)}%</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap">${l.winRate.toFixed(2)}%</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap">${l.trades}</td>
+      <td class="py-2.5 px-3 num whitespace-nowrap">${l.healthScore}</td>
+      <td class="py-2.5 px-3 whitespace-nowrap"><span class="${statusChipClass(l.status)}">${statusLabel(l.status)}</span></td>
+      <td class="py-2.5 px-3 whitespace-nowrap">
+        <button class="text-xs text-sky font-semibold mr-2" onclick="openLogModal('${l.id}')">แก้ไข</button>
+        <button class="text-xs text-rose font-semibold" onclick="deleteLog('${l.id}')">ลบ</button>
+      </td>
+    </tr>`;
+  }).join('');
+  document.getElementById('logTable').innerHTML = head + '<tbody>'+(body||'<tr><td class="py-4 px-3 text-ink-3" colspan="13">ไม่พบข้อมูล</td></tr>')+'</tbody>';
+}
+['logFilterPortfolio','logFilterFrom','logFilterTo'].forEach(id=>{
+  document.getElementById(id).addEventListener('change',renderLogTable);
+});
+
+/* ---------------- RENDER: PORTFOLIO TAB ---------------- */
+let pfFilter = 'all';
+let pfView = 'table';
+let pfPage = 1;
+const pfPageSize = 10;
+
+function pfTodayLog(p){
+  return state.dailyLogs.find(l=>l.portfolioId===p.id && l.date===asOf());
+}
+function pfProfit(p){
+  const log = pfTodayLog(p);
+  if(log) return {amt: log.endBalance-log.startBalance, pct: log.startBalance? (log.endBalance-log.startBalance)/log.startBalance*100:0};
+  const amt = (p.balance||0)-(p.startBalance||0);
+  return {amt, pct: p.startBalance? amt/p.startBalance*100:0};
+}
+function miniRing(score, size){
+  size = size||44;
+  const color = score>=80?'#2FD98A':score>=50?'#F0A93B':'#F1546B';
+  const deg = Math.max(0,Math.min(100,score))*3.6;
+  return `<div style="width:${size}px;height:${size}px;border-radius:999px;background:conic-gradient(${color} ${deg}deg, #212C3B ${deg}deg);display:flex;align-items:center;justify-content:center;">
+    <div style="width:${size-9}px;height:${size-9}px;border-radius:999px;background:#111823;display:flex;align-items:center;justify-content:center;">
+      <span class="num font-bold" style="font-size:${size*0.30}px;color:${color}">${score}</span>
+    </div>
+  </div>`;
+}
+function setPfView(v){
+  pfView = v;
+  document.getElementById('pfViewTable').style.background = v==='table'?'#1A2431':'';
+  document.getElementById('pfViewGrid').style.background = v==='grid'?'#1A2431':'';
+  document.getElementById('pfTableWrap').classList.toggle('hidden', v!=='table');
+  document.getElementById('pfGridWrap').classList.toggle('hidden', v!=='grid');
+}
+function setPfFilter(f){ pfFilter = f; pfPage = 1; renderPortfolioTab(); }
+
+function pfFilteredList(){
+  const q = (document.getElementById('pfSearch').value||'').trim().toLowerCase();
+  const list = state.portfolios.filter(p=>{
+    if(pfFilter==='favorite' && !p.favorite) return false;
+    if(pfFilter==='active' && !(p.badge==='active')) return false;
+    if(pfFilter==='paused' && p.badge!=='paused') return false;
+    if(pfFilter==='loss' && p.badge!=='loss') return false;
+    if(q){
+      const hay = [p.ea,p.symbol,p.broker,p.account,p.code].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  // favorites always float to the top, keeping original relative order within each group
+  return list
+    .map((p,i)=>({p,i}))
+    .sort((a,b)=> (b.p.favorite - a.p.favorite) || (a.i - b.i))
+    .map(x=>x.p);
+}
+
+function renderPortfolioKpis(){
+  const list = state.portfolios;
+  const total = list.length || 1;
+  const profitable = list.filter(p=>pfProfit(p).amt>0).length;
+  const losing = list.filter(p=>pfProfit(p).amt<0).length;
+  const paused = list.filter(p=>p.badge==='paused').length;
+  const todaySum = list.reduce((s,p)=>s+pfProfit(p).amt,0);
+  const todayStartSum = list.reduce((s,p)=>{const l=pfTodayLog(p); return s+(l?l.startBalance:(p.startBalance||0));},0)||1;
+  const avgDD = list.length ? list.reduce((s,p)=>s+(p.ddFromPeak||0),0)/list.length : 0;
+
+  const cards = [
+    {label:'จำนวน Portfolio', value:list.length, sub:'พอร์ต', cls:'text-ink-1'},
+    {label:'พอร์ตทำกำไร', value:profitable, sub:(profitable/total*100).toFixed(2)+'%', cls:'text-mint'},
+    {label:'พอร์ตขาดทุน', value:losing, sub:(losing/total*100).toFixed(2)+'%', cls:'text-rose'},
+    {label:'พอร์ตหยุดชั่วคราว', value:paused, sub:(paused/total*100).toFixed(2)+'%', cls:'text-amber'},
+    {label:'กำไรรวมวันนี้', value:fmt(todaySum), sub:pct(todaySum/todayStartSum*100), cls: todaySum>=0?'text-mint':'text-rose'},
+    {label:'Drawdown เฉลี่ย', value:avgDD.toFixed(2)+'%', sub:'จาก Equity Peak', cls:'text-rose'},
+  ];
+  document.getElementById('pfKpiRow').innerHTML = cards.map(c=>`
+    <div class="card p-4">
+      <div class="text-[11px] text-ink-3 mb-1.5">${c.label}</div>
+      <div class="text-lg md:text-xl font-extrabold num ${c.cls}">${c.value}</div>
+      <div class="text-[11px] text-ink-3 mt-1">${c.sub}</div>
+    </div>`).join('');
+}
+
+function renderPortfolioFilterTabs(){
+  const list = state.portfolios;
+  const tabs = [
+    {k:'all', label:'ทั้งหมด', count:list.length},
+    {k:'favorite', label:'⭐ รายการโปรด', count:list.filter(p=>p.favorite).length},
+    {k:'active', label:'กำลังใช้งาน', count:list.filter(p=>p.badge==='active').length},
+    {k:'paused', label:'หยุดชั่วคราว', count:list.filter(p=>p.badge==='paused').length},
+    {k:'loss', label:'ขาดทุน', count:list.filter(p=>p.badge==='loss').length},
+  ];
+  document.getElementById('pfFilterTabs').innerHTML = tabs.map(t=>`
+    <button onclick="setPfFilter('${t.k}')" class="px-3 py-2 rounded-xl text-xs font-semibold" style="${pfFilter===t.k?'background:#2FD98A;color:#04120C;':'background:#161F2C;color:#9CACC2;'}">${t.label} (${t.count})</button>
+  `).join('');
+}
+
+function pfRowHtml(p){
+  const v = vpsById(p.vpsId);
+  const bm = badgeMeta[p.badge] || badgeMeta.paused;
+  const prof = pfProfit(p);
+  const targetPct = p.monthlyTarget ? Math.max(0,Math.min(100, (prof.amt / p.monthlyTarget) * 100)) : 0;
+  return `<tr class="border-b border-base-line/60 align-middle">
+    <td class="py-3 pl-3 pr-2"><button onclick="toggleFavorite('${p.id}')" class="text-base" title="ติดดาวเพื่อ pin พอร์ตนี้ไว้บนสุดของรายการ" style="color:${p.favorite?'#F0A93B':'#3A4658'}">${p.favorite?'★':'☆'}</button></td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="font-semibold">${p.ea} <span class="text-ink-3 font-normal">${p.code||''}</span></div>
+      <span class="chip mt-1 inline-block" style="${bm.chip}">${bm.label}</span>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="text-ink-1">${p.broker||'-'} · ${p.account||'-'}</div>
+      <div class="text-ink-3 text-[11px]">Leverage ${p.leverage||'-'}</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="text-ink-1">${v?v.name:'-'}</div>
+      <div class="text-ink-3 text-[11px] flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${v?dotColor(v.status):'#5E7089'}"></span>${v?statusLabel(v.status):'-'}</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="text-ink-1">${p.ea} <span class="text-ink-3">${p.eaVersion||''}</span></div>
+      <div class="text-ink-3 text-[11px] num">Magic ${p.magic||'-'}</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="num font-medium">${p.symbol||'-'}</div>
+      <div class="text-ink-3 text-[11px]">${p.symbolNote||''}</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap min-w-[130px]">
+      <div class="num text-xs">${fmt(p.monthlyTarget||0)} <span class="text-ink-3">(${targetPct.toFixed(0)}%)</span></div>
+      <div class="w-full h-1.5 rounded-full mt-1" style="background:#212C3B;">
+        <div class="h-1.5 rounded-full" style="width:${targetPct}%;background:${targetPct>=70?'#2FD98A':targetPct>=30?'#F0A93B':'#F1546B'};"></div>
+      </div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="num text-rose text-xs font-medium">${(p.ddFromPeak||0).toFixed(2)}%</div>
+      <div class="text-ink-3 text-[11px]">จาก Equity Peak</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${bm.dot}"></span><span class="text-xs">${bm.main}</span></div>
+      <div class="text-ink-3 text-[11px] ml-3">${bm.sub}</div>
+    </td>
+    <td class="py-3 pr-3">${miniRing(p.healthScore||0, 40)}</td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="num font-semibold text-xs ${prof.amt>=0?'text-mint':'text-rose'}">${fmt(prof.amt)}</div>
+      <div class="num text-[11px] ${prof.pct>=0?'text-mint':'text-rose'}">${pct(prof.pct)}</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <button class="text-xs text-sky font-semibold mr-2" onclick="openPortfolioModal('${p.id}')">แก้ไข</button>
+      <button class="text-xs text-rose font-semibold" onclick="deletePortfolio('${p.id}')">ลบ</button>
+    </td>
+  </tr>`;
+}
+
+function pfCardHtml(p){
+  const v = vpsById(p.vpsId);
+  const bm = badgeMeta[p.badge] || badgeMeta.paused;
+  const prof = pfProfit(p);
+  return `<div class="card p-4">
+    <div class="flex items-start justify-between mb-2">
+      <div class="flex items-center gap-2">
+        <button onclick="toggleFavorite('${p.id}')" class="text-base" title="ติดดาวเพื่อ pin พอร์ตนี้ไว้บนสุดของรายการ" style="color:${p.favorite?'#F0A93B':'#3A4658'}">${p.favorite?'★':'☆'}</button>
+        <div>
+          <div class="font-bold text-sm">${p.ea} <span class="text-ink-3 font-normal text-xs">${p.code||''}</span></div>
+          <span class="chip mt-1 inline-block" style="${bm.chip}">${bm.label}</span>
+        </div>
+      </div>
+      ${miniRing(p.healthScore||0, 40)}
+    </div>
+    <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs mt-3">
+      <div><div class="text-ink-3 text-[10px]">Broker/บัญชี</div><div>${p.broker||'-'} · ${p.account||'-'}</div></div>
+      <div><div class="text-ink-3 text-[10px]">VPS</div><div class="flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${v?dotColor(v.status):'#5E7089'}"></span>${v?v.name:'-'}</div></div>
+      <div><div class="text-ink-3 text-[10px]">คู่เงินหลัก</div><div class="num">${p.symbol||'-'} <span class="text-ink-3">${p.symbolNote||''}</span></div></div>
+      <div><div class="text-ink-3 text-[10px]">Max Drawdown</div><div class="num text-rose">${(p.ddFromPeak||0).toFixed(2)}%</div></div>
+    </div>
+    <div class="mt-3">
+      <div class="flex justify-between text-[11px] text-ink-3 mb-1"><span>เป้าหมายรายเดือน</span><span class="num">${fmt(p.monthlyTarget||0)}</span></div>
+      <div class="w-full h-1.5 rounded-full" style="background:#212C3B;">
+        <div class="h-1.5 rounded-full" style="width:${Math.max(0,Math.min(100,(prof.amt/(p.monthlyTarget||1))*100))}%;background:#2FD98A;"></div>
+      </div>
+    </div>
+    <div class="flex items-center justify-between mt-3 pt-3 border-t border-base-line">
+      <div>
+        <div class="num font-bold text-sm ${prof.amt>=0?'text-mint':'text-rose'}">${fmt(prof.amt)}</div>
+        <div class="num text-[11px] ${prof.pct>=0?'text-mint':'text-rose'}">${pct(prof.pct)} วันนี้</div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn btn-ghost text-xs px-2.5 py-1.5" onclick="openPortfolioModal('${p.id}')">แก้ไข</button>
+        <button class="btn btn-danger text-xs px-2.5 py-1.5" onclick="deletePortfolio('${p.id}')">ลบ</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPortfolioTab(){
+  renderPortfolioKpis();
+  renderPortfolioFilterTabs();
+  const all = pfFilteredList();
+  const totalPages = Math.max(1, Math.ceil(all.length/pfPageSize));
+  pfPage = Math.min(pfPage, totalPages);
+  const pageItems = all.slice((pfPage-1)*pfPageSize, pfPage*pfPageSize);
+
+  const head = `<thead><tr class="text-ink-3 text-left border-b border-base-line">
+    <th class="py-2.5 pl-3 pr-2 font-medium"></th>
+    <th class="py-2.5 pr-3 font-medium">ชื่อ Portfolio</th>
+    <th class="py-2.5 pr-3 font-medium">Broker / บัญชี</th>
+    <th class="py-2.5 pr-3 font-medium">VPS</th>
+    <th class="py-2.5 pr-3 font-medium">EA / กลยุทธ์</th>
+    <th class="py-2.5 pr-3 font-medium">คู่เงินหลัก</th>
+    <th class="py-2.5 pr-3 font-medium">เป้าหมายรายเดือน</th>
+    <th class="py-2.5 pr-3 font-medium">Max Drawdown</th>
+    <th class="py-2.5 pr-3 font-medium">สถานะ</th>
+    <th class="py-2.5 pr-3 font-medium">Health Score</th>
+    <th class="py-2.5 pr-3 font-medium">กำไรวันนี้</th>
+    <th class="py-2.5 pr-3 font-medium">จัดการ</th>
+  </tr></thead>`;
+  document.getElementById('pfTable').innerHTML = head + '<tbody>' + (pageItems.map(pfRowHtml).join('') || '<tr><td class="py-4 px-3 text-ink-3" colspan="12">ไม่พบ Portfolio</td></tr>') + '</tbody>';
+  document.getElementById('pfGridWrap').innerHTML = pageItems.map(pfCardHtml).join('') || '<div class="text-ink-3 text-sm">ไม่พบ Portfolio</div>';
+
+  const from = all.length ? (pfPage-1)*pfPageSize+1 : 0;
+  const to = Math.min(all.length, pfPage*pfPageSize);
+  document.getElementById('pfPagination').innerHTML = `
+    <span>แสดง ${from}-${to} จาก ${all.length} รายการ</span>
+    <div class="flex items-center gap-1.5">
+      <button class="btn btn-ghost px-2.5 py-1.5" onclick="pfGoPage(${pfPage-1})" ${pfPage<=1?'disabled':''}>‹</button>
+      <span class="num px-2">${pfPage} / ${totalPages}</span>
+      <button class="btn btn-ghost px-2.5 py-1.5" onclick="pfGoPage(${pfPage+1})" ${pfPage>=totalPages?'disabled':''}>›</button>
+    </div>`;
+}
+function pfGoPage(n){ pfPage = n; renderPortfolioTab(); }
+document.getElementById('pfSearch').addEventListener('input', ()=>{ pfPage=1; renderPortfolioTab(); });
+
+/* ---------------- RENDER: VPS TAB ---------------- */
+let vpsView = 'grid';
+let vpsPage = 1;
+const vpsPageSize = 10;
+const providerColors = ['#7C6CF0','#3AA9F0','#2FD98A','#F1546B','#F0A93B','#38BDF8'];
+function providerColor(name){
+  let h=0; for(let i=0;i<(name||'').length;i++) h = (h*31 + name.charCodeAt(i))>>>0;
+  return providerColors[h % providerColors.length];
+}
+function vpsPortfolioCount(vId){ return state.portfolios.filter(p=>p.vpsId===vId).length; }
+function setVpsView(v){
+  vpsView = v;
+  document.getElementById('vpsViewGrid').style.background = v==='grid'?'#1A2431':'';
+  document.getElementById('vpsViewTable').style.background = v==='table'?'#1A2431':'';
+  document.getElementById('vpsGridWrap').classList.toggle('hidden', v!=='grid');
+  document.getElementById('vpsTableWrap').classList.toggle('hidden', v!=='table');
+}
+function clearVpsFilters(){
+  document.getElementById('vpsSearch').value='';
+  document.getElementById('vpsFilterStatus').value='';
+  document.getElementById('vpsFilterProvider').value='';
+  vpsPage=1; renderVpsTab();
+}
+function fillVpsProviderFilter(){
+  const sel = document.getElementById('vpsFilterProvider');
+  const current = sel.value;
+  const providers = [...new Set(state.vpsList.map(v=>v.provider).filter(Boolean))];
+  sel.innerHTML = '<option value="">ผู้ให้บริการทั้งหมด</option>' + providers.map(p=>`<option value="${p}">${p}</option>`).join('');
+  sel.value = providers.includes(current) ? current : '';
+}
+function vpsFilteredList(){
+  const q = (document.getElementById('vpsSearch').value||'').trim().toLowerCase();
+  const st = document.getElementById('vpsFilterStatus').value;
+  const pv = document.getElementById('vpsFilterProvider').value;
+  return state.vpsList.filter(v=>{
+    if(st==='active' && v.status==='offline') return false;
+    if(st==='offline' && v.status!=='offline') return false;
+    if(pv && v.provider!==pv) return false;
+    if(q){
+      const hay = [v.name,v.label,v.ip,v.provider,v.country].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function renderVpsKpis(){
+  const list = state.vpsList;
+  const totalCost = list.reduce((s,v)=>s+(v.cost||0),0);
+  const active = list.filter(v=>v.status!=='offline').length;
+  const offline = list.filter(v=>v.status==='offline').length;
+  const cards = [
+    {icon:'🖥️', label:'จำนวน VPS ทั้งหมด', value:list.length, sub:'เครื่อง', cls:'text-ink-1'},
+    {icon:'💲', label:'ค่าใช้จ่ายต่อเดือนรวม', value:'$'+totalCost.toFixed(2), sub:'USD', cls:'text-ink-1'},
+    {icon:'🟢', label:'VPS ที่ใช้งาน', value:active, sub:'เครื่อง', cls:'text-mint'},
+    {icon:'🔴', label:'VPS หยุดใช้งาน', value:offline, sub:'เครื่อง', cls:'text-rose'},
+  ];
+  document.getElementById('vpsKpiRow').innerHTML = cards.map(c=>`
+    <div class="card p-4">
+      <div class="text-[11px] text-ink-3 mb-1.5">${c.icon} ${c.label}</div>
+      <div class="text-lg md:text-xl font-extrabold num ${c.cls}">${c.value}</div>
+      <div class="text-[11px] text-ink-3 mt-1">${c.sub}</div>
+    </div>`).join('');
+}
+function vpsStatusBadge(v){
+  return v.status==='offline'
+    ? `<span class="chip" style="background:rgba(241,84,107,.12);color:#F1546B;">หยุดใช้งาน</span>`
+    : `<span class="chip" style="background:rgba(47,217,138,.12);color:#2FD98A;">ใช้งานอยู่</span>`;
+}
+function vpsTagBadge(v){
+  const t = v.tag || (v.status==='offline'?'Offline':'Active');
+  const color = /offline/i.test(t) ? '#F1546B' : '#2FD98A';
+  return `<span class="chip" style="background:${color}22;color:${color};">${t}</span>`;
+}
+function vpsRowHtml(v){
+  const count = vpsPortfolioCount(v.id);
+  return `<tr class="border-b border-base-line/60 align-top">
+    <td class="py-3 pl-3 pr-3 whitespace-nowrap">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="background:${dotColor(v.status)}22;color:${dotColor(v.status)};">🖥️</div>
+        <div>
+          <div class="font-semibold">${v.name}</div>
+          <div class="text-ink-3 text-[11px]">${v.label||''}</div>
+          ${vpsTagBadge(v)}
+        </div>
+      </div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="num">${v.ip}</div>
+      <div class="text-ink-3 text-[11px]">${v.country||''}</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="flex items-center gap-1.5"><span class="w-4 h-4 rounded-full inline-block shrink-0" style="background:${providerColor(v.provider)}"></span>${v.provider||'-'}</div>
+    </td>
+    <td class="py-3 pr-3 text-ink-2 text-[11px] leading-relaxed whitespace-nowrap">
+      <div>• CPU: ${v.cpu||'-'}</div>
+      <div>• RAM: ${v.ram||'-'}</div>
+      <div>• Disk: ${v.disk||'-'}</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="num font-medium">$${(v.cost||0).toFixed(2)}</div>
+      <div class="text-ink-3 text-[11px]">USD</div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap">${vpsStatusBadge(v)}</td>
+    <td class="py-3 pr-3 whitespace-nowrap text-sky font-medium">${count} Portfolio${count===1?'':'s'}</td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <button class="text-xs text-sky font-semibold mr-2" onclick="openVpsModal('${v.id}')">✎ แก้ไข</button>
+      <button class="text-xs text-rose font-semibold" onclick="deleteVps('${v.id}')">ลบ</button>
+    </td>
+  </tr>`;
+}
+function vpsCardHtml(v){
+  const count = vpsPortfolioCount(v.id);
+  return `<div class="card p-4">
+    <div class="flex items-start justify-between mb-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${dotColor(v.status)}22;color:${dotColor(v.status)};">🖥️</div>
+        <div>
+          <div class="font-bold text-sm">${v.name}</div>
+          <div class="text-ink-3 text-[11px]">${v.label||''}</div>
+        </div>
+      </div>
+      ${vpsTagBadge(v)}
+    </div>
+    <div class="text-xs mt-2 num">${v.ip} <span class="text-ink-3">· ${v.country||''}</span></div>
+    <div class="flex items-center gap-1.5 text-xs mt-1.5"><span class="w-3.5 h-3.5 rounded-full inline-block" style="background:${providerColor(v.provider)}"></span>${v.provider||'-'}</div>
+    <div class="text-ink-2 text-[11px] leading-relaxed mt-2 grid grid-cols-3 gap-1">
+      <div>CPU<br><span class="text-ink-1 num">${v.cpu||'-'}</span></div>
+      <div>RAM<br><span class="text-ink-1 num">${v.ram||'-'}</span></div>
+      <div>Disk<br><span class="text-ink-1 num">${v.disk||'-'}</span></div>
+    </div>
+    <div class="flex items-center justify-between mt-3 pt-3 border-t border-base-line">
+      <div>
+        <div class="num font-bold text-sm">$${(v.cost||0).toFixed(2)} <span class="text-ink-3 text-[11px] font-normal">/เดือน</span></div>
+        ${vpsStatusBadge(v)}
+      </div>
+      <div class="text-right">
+        <div class="text-sky font-medium text-xs mb-1.5">${count} Portfolio${count===1?'':'s'}</div>
+        <div class="flex gap-2">
+          <button class="btn btn-ghost text-xs px-2.5 py-1.5" onclick="openVpsModal('${v.id}')">แก้ไข</button>
+          <button class="btn btn-danger text-xs px-2.5 py-1.5" onclick="deleteVps('${v.id}')">ลบ</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function renderVpsTab(){
+  renderVpsKpis();
+  fillVpsProviderFilter();
+  const all = vpsFilteredList();
+  const totalPages = Math.max(1, Math.ceil(all.length/vpsPageSize));
+  vpsPage = Math.min(vpsPage, totalPages);
+  const pageItems = all.slice((vpsPage-1)*vpsPageSize, vpsPage*vpsPageSize);
+
+  const head = `<thead><tr class="text-ink-3 text-left border-b border-base-line">
+    <th class="py-2.5 pl-3 pr-3 font-medium">ชื่อ VPS</th>
+    <th class="py-2.5 pr-3 font-medium">IP Address</th>
+    <th class="py-2.5 pr-3 font-medium">Provider</th>
+    <th class="py-2.5 pr-3 font-medium">รายละเอียด</th>
+    <th class="py-2.5 pr-3 font-medium">ค่าใช้จ่าย/เดือน</th>
+    <th class="py-2.5 pr-3 font-medium">สถานะ</th>
+    <th class="py-2.5 pr-3 font-medium">ใช้งานกับ Portfolio</th>
+    <th class="py-2.5 pr-3 font-medium">จัดการ</th>
+  </tr></thead>`;
+  document.getElementById('vpsTable').innerHTML = head + '<tbody>' + (pageItems.map(vpsRowHtml).join('') || '<tr><td class="py-4 px-3 text-ink-3" colspan="8">ไม่พบ VPS</td></tr>') + '</tbody>';
+  document.getElementById('vpsGridWrap').innerHTML = pageItems.map(vpsCardHtml).join('') || '<div class="text-ink-3 text-sm">ไม่พบ VPS</div>';
+
+  const from = all.length ? (vpsPage-1)*vpsPageSize+1 : 0;
+  const to = Math.min(all.length, vpsPage*vpsPageSize);
+  document.getElementById('vpsPagination').innerHTML = `
+    <span>แสดง ${from}-${to} จาก ${all.length} รายการ</span>
+    <div class="flex items-center gap-1.5">
+      <button class="btn btn-ghost px-2.5 py-1.5" onclick="vpsGoPage(${vpsPage-1})" ${vpsPage<=1?'disabled':''}>‹</button>
+      <span class="num px-2">${vpsPage} / ${totalPages}</span>
+      <button class="btn btn-ghost px-2.5 py-1.5" onclick="vpsGoPage(${vpsPage+1})" ${vpsPage>=totalPages?'disabled':''}>›</button>
+    </div>`;
+}
+function vpsGoPage(n){ vpsPage = n; renderVpsTab(); }
+['vpsSearch','vpsFilterStatus','vpsFilterProvider'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>{ vpsPage=1; renderVpsTab(); });
+  document.getElementById(id).addEventListener('change', ()=>{ vpsPage=1; renderVpsTab(); });
+});
+
+/* ---------------- RENDER: EA TAB ---------------- */
+let eaView = 'table';
+let eaPage = 1;
+const eaPageSize = 10;
+const eaStatusMeta = {
+  active:  {label:'Active',  chip:'background:rgba(47,217,138,.12);color:#2FD98A;', dot:'#2FD98A', text:'ใช้งานอยู่'},
+  warning: {label:'Warning', chip:'background:rgba(240,169,59,.12);color:#F0A93B;', dot:'#F0A93B', text:'เสี่ยงสูง'},
+  paused:  {label:'Paused',  chip:'background:rgba(94,112,137,.15);color:#9CACC2;', dot:'#5E7089', text:'หยุดใช้งาน'},
+};
+const riskMeta = {
+  low:    {label:'Low',    style:'background:rgba(47,217,138,.12);color:#2FD98A;'},
+  medium: {label:'Medium', style:'background:rgba(240,169,59,.12);color:#F0A93B;'},
+  high:   {label:'High',   style:'background:rgba(241,84,107,.12);color:#F1546B;'},
+};
+function eaById(id){ return state.eaList.find(e=>e.id===id); }
+function eaPortfolioCount(name){ return state.portfolios.filter(p=>(p.ea||'').trim().toLowerCase()===(name||'').trim().toLowerCase()).length; }
+function setEaView(v){
+  eaView = v;
+  document.getElementById('eaViewTable').style.background = v==='table'?'#1A2431':'';
+  document.getElementById('eaViewGrid').style.background = v==='grid'?'#1A2431':'';
+  document.getElementById('eaTableWrap').classList.toggle('hidden', v!=='table');
+  document.getElementById('eaGridWrap').classList.toggle('hidden', v!=='grid');
+}
+function clearEaFilters(){
+  document.getElementById('eaSearch').value='';
+  document.getElementById('eaFilterStatus').value='';
+  document.getElementById('eaFilterDev').value='';
+  eaPage=1; renderEaTab();
+}
+function fillEaDeveloperFilter(){
+  const sel = document.getElementById('eaFilterDev');
+  const current = sel.value;
+  const devs = [...new Set(state.eaList.map(e=>e.developer).filter(Boolean))];
+  sel.innerHTML = '<option value="">ผู้พัฒนา: ทั้งหมด</option>' + devs.map(d=>`<option value="${d}">${d}</option>`).join('');
+  sel.value = devs.includes(current) ? current : '';
+}
+function eaFilteredList(){
+  const q = (document.getElementById('eaSearch').value||'').trim().toLowerCase();
+  const st = document.getElementById('eaFilterStatus').value;
+  const dev = document.getElementById('eaFilterDev').value;
+  return state.eaList.filter(e=>{
+    if(st && e.status!==st) return false;
+    if(dev && e.developer!==dev) return false;
+    if(q){
+      const hay = [e.name,e.developer].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function renderEaKpis(){
+  const list = state.eaList;
+  const total = list.length || 1;
+  const active = list.filter(e=>e.status==='active').length;
+  const paused = list.filter(e=>e.status==='paused').length;
+  const warning = list.filter(e=>e.status==='warning').length;
+  const cards = [
+    {label:'จำนวน EA ทั้งหมด', value:list.length, sub:'EA', cls:'text-ink-1'},
+    {label:'EA ที่ใช้งาน', value:active, sub:(active/total*100).toFixed(1)+'%', cls:'text-mint'},
+    {label:'EA หยุดใช้งาน', value:paused, sub:(paused/total*100).toFixed(1)+'%', cls:'text-ink-2'},
+    {label:'EA พักใช้งาน', value:warning, sub:(warning/total*100).toFixed(1)+'%', cls:'text-amber'},
+  ];
+  document.getElementById('eaKpiRow').innerHTML = cards.map(c=>`
+    <div class="card p-4">
+      <div class="text-[11px] text-ink-3 mb-1.5">${c.label}</div>
+      <div class="text-lg md:text-xl font-extrabold num ${c.cls}">${c.value}</div>
+      <div class="text-[11px] text-ink-3 mt-1">${c.sub}</div>
+    </div>`).join('');
+}
+function eaConditionsHtml(e){
+  const list = e.conditions||[];
+  const shown = list.slice(0,3);
+  const extra = list.length - shown.length;
+  return `<ul class="text-[11px] text-ink-2 leading-relaxed">
+    ${shown.map(c=>`<li>• ${c}</li>`).join('')}
+  </ul>${extra>0?`<div class="text-sky text-[11px] font-semibold mt-0.5">+${extra}</div>`:''}`;
+}
+function eaRowHtml(e){
+  const sm = eaStatusMeta[e.status] || eaStatusMeta.paused;
+  const rm = riskMeta[e.risk] || riskMeta.medium;
+  const count = eaPortfolioCount(e.name);
+  return `<tr class="border-b border-base-line/60 align-top">
+    <td class="py-3 pl-3 pr-3 whitespace-nowrap">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="background:${sm.dot}22;color:${sm.dot};">🤖</div>
+        <div>
+          <div class="font-semibold">${e.name}</div>
+          <span class="chip mt-1 inline-block" style="${sm.chip}">${sm.label}</span>
+        </div>
+      </div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap text-ink-2">${e.developer||'-'}</td>
+    <td class="py-3 pr-3 whitespace-nowrap"><span class="chip" style="${rm.style}">${rm.label}</span></td>
+    <td class="py-3 pr-3 whitespace-nowrap num">${(e.lot||0).toFixed(2)}</td>
+    <td class="py-3 pr-3 whitespace-nowrap text-ink-2">${e.recovery||'-'}</td>
+    <td class="py-3 pr-3 min-w-[220px]">${eaConditionsHtml(e)}</td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${sm.dot}"></span><span class="text-xs">${sm.text}</span></div>
+    </td>
+    <td class="py-3 pr-3 whitespace-nowrap text-sky font-medium">${count} Portfolio${count===1?'':'s'}</td>
+    <td class="py-3 pr-3 whitespace-nowrap">
+      <button class="text-xs text-sky font-semibold mr-2" onclick="openEaModal('${e.id}')">✎ แก้ไข</button>
+      <button class="text-xs text-rose font-semibold" onclick="deleteEa('${e.id}')">ลบ</button>
+    </td>
+  </tr>`;
+}
+function eaCardHtml(e){
+  const sm = eaStatusMeta[e.status] || eaStatusMeta.paused;
+  const rm = riskMeta[e.risk] || riskMeta.medium;
+  const count = eaPortfolioCount(e.name);
+  return `<div class="card p-4">
+    <div class="flex items-start justify-between mb-2">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style="background:${sm.dot}22;color:${sm.dot};">🤖</div>
+        <div>
+          <div class="font-bold text-sm">${e.name}</div>
+          <div class="text-ink-3 text-[11px]">${e.developer||'-'}</div>
+        </div>
+      </div>
+      <span class="chip" style="${sm.chip}">${sm.label}</span>
+    </div>
+    <div class="flex items-center gap-2 text-xs mt-2">
+      <span class="chip" style="${rm.style}">${rm.label} risk</span>
+      <span class="text-ink-3">Lot ${(e.lot||0).toFixed(2)}</span>
+      <span class="text-ink-3">· ${e.recovery||'-'}</span>
+    </div>
+    <div class="mt-2">${eaConditionsHtml(e)}</div>
+    <div class="flex items-center justify-between mt-3 pt-3 border-t border-base-line">
+      <div class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${sm.dot}"></span><span class="text-xs">${sm.text}</span></div>
+      <div class="text-sky font-medium text-xs">${count} Portfolio${count===1?'':'s'}</div>
+    </div>
+    <div class="flex gap-2 mt-3">
+      <button class="btn btn-ghost text-xs px-2.5 py-1.5 flex-1" onclick="openEaModal('${e.id}')">แก้ไข</button>
+      <button class="btn btn-danger text-xs px-2.5 py-1.5 flex-1" onclick="deleteEa('${e.id}')">ลบ</button>
+    </div>
+  </div>`;
+}
+function renderEaTab(){
+  renderEaKpis();
+  fillEaDeveloperFilter();
+  const all = eaFilteredList();
+  const totalPages = Math.max(1, Math.ceil(all.length/eaPageSize));
+  eaPage = Math.min(eaPage, totalPages);
+  const pageItems = all.slice((eaPage-1)*eaPageSize, eaPage*eaPageSize);
+
+  const head = `<thead><tr class="text-ink-3 text-left border-b border-base-line">
+    <th class="py-2.5 pl-3 pr-3 font-medium">ชื่อ EA</th>
+    <th class="py-2.5 pr-3 font-medium">ผู้พัฒนา</th>
+    <th class="py-2.5 pr-3 font-medium">ความเสี่ยง</th>
+    <th class="py-2.5 pr-3 font-medium">Lot เริ่มต้น</th>
+    <th class="py-2.5 pr-3 font-medium">Recovery</th>
+    <th class="py-2.5 pr-3 font-medium">Condition (เงื่อนไขการใช้งาน)</th>
+    <th class="py-2.5 pr-3 font-medium">สถานะ</th>
+    <th class="py-2.5 pr-3 font-medium">ใช้งานกับ Portfolio</th>
+    <th class="py-2.5 pr-3 font-medium">จัดการ</th>
+  </tr></thead>`;
+  document.getElementById('eaTable').innerHTML = head + '<tbody>' + (pageItems.map(eaRowHtml).join('') || '<tr><td class="py-4 px-3 text-ink-3" colspan="9">ไม่พบ EA</td></tr>') + '</tbody>';
+  document.getElementById('eaGridWrap').innerHTML = pageItems.map(eaCardHtml).join('') || '<div class="text-ink-3 text-sm">ไม่พบ EA</div>';
+
+  const from = all.length ? (eaPage-1)*eaPageSize+1 : 0;
+  const to = Math.min(all.length, eaPage*eaPageSize);
+  document.getElementById('eaPagination').innerHTML = `
+    <span>แสดง ${from}-${to} จาก ${all.length} รายการ</span>
+    <div class="flex items-center gap-1.5">
+      <button class="btn btn-ghost px-2.5 py-1.5" onclick="eaGoPage(${eaPage-1})" ${eaPage<=1?'disabled':''}>‹</button>
+      <span class="num px-2">${eaPage} / ${totalPages}</span>
+      <button class="btn btn-ghost px-2.5 py-1.5" onclick="eaGoPage(${eaPage+1})" ${eaPage>=totalPages?'disabled':''}>›</button>
+    </div>`;
+}
+function eaGoPage(n){ eaPage = n; renderEaTab(); }
+['eaSearch','eaFilterStatus','eaFilterDev'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>{ eaPage=1; renderEaTab(); });
+  document.getElementById(id).addEventListener('change', ()=>{ eaPage=1; renderEaTab(); });
+});
+
+function openEaModal(id){
+  const e = id ? eaById(id) : null;
+  openModal(e?'แก้ไข EA':'เพิ่ม EA', `
+    <div class="grid grid-cols-2 gap-2">
+      <div><label class="block text-xs text-ink-3 mb-1">ชื่อ EA</label><input type="text" id="f_ename" class="w-full" value="${e?e.name:''}" placeholder="GARAI v68"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">ผู้พัฒนา</label><input type="text" id="f_edev" class="w-full" value="${e&&e.developer?e.developer:''}" placeholder="GARAI Team"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">ความเสี่ยง</label>
+        <select id="f_erisk" class="w-full">
+          ${Object.keys(riskMeta).map(k=>`<option value="${k}" ${e&&e.risk===k?'selected':''}>${riskMeta[k].label}</option>`).join('')}
+        </select>
+      </div>
+      <div><label class="block text-xs text-ink-3 mb-1">Lot เริ่มต้น</label><input type="number" step="0.01" id="f_elot" class="w-full" value="${e?e.lot:''}" placeholder="0.01"></div>
+      <div class="col-span-2"><label class="block text-xs text-ink-3 mb-1">Recovery</label><input type="text" id="f_erec" class="w-full" value="${e&&e.recovery?e.recovery:''}" placeholder="Step Recovery"></div>
+    </div>
+    <label class="block text-xs text-ink-3 mb-1 mt-2">สถานะ</label>
+    <select id="f_estatus" class="w-full mb-2">
+      ${Object.keys(eaStatusMeta).map(k=>`<option value="${k}" ${e&&e.status===k?'selected':''}>${eaStatusMeta[k].label} — ${eaStatusMeta[k].text}</option>`).join('')}
+    </select>
+    <label class="block text-xs text-ink-3 mb-1">Condition (เงื่อนไขการใช้งาน) — บรรทัดละ 1 ข้อ</label>
+    <textarea id="f_econd" rows="4" class="w-full mb-4">${e&&e.conditions?e.conditions.join('\n'):''}</textarea>
+    <div class="flex gap-2">
+      <button class="btn btn-primary flex-1" onclick="saveEa('${e?e.id:''}')">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    </div>
+  `);
+}
+function saveEa(id){
+  const name = document.getElementById('f_ename').value.trim();
+  if(!name) { showToast('กรุณากรอกชื่อ EA', 'warn'); return; }
+  const data = {
+    name,
+    developer: document.getElementById('f_edev').value.trim(),
+    risk: document.getElementById('f_erisk').value,
+    lot: parseFloat(document.getElementById('f_elot').value)||0,
+    recovery: document.getElementById('f_erec').value.trim(),
+    status: document.getElementById('f_estatus').value,
+    conditions: document.getElementById('f_econd').value.split('\n').map(s=>s.trim()).filter(Boolean),
+  };
+  if(id){ Object.assign(eaById(id), data); }
+  else { state.eaList.push({id:uid(), ...data}); }
+  saveData(); closeModal(); renderAll();
+  showToast(id?'บันทึกการแก้ไข EA สำเร็จ':'เพิ่ม EA สำเร็จ');
+}
+function deleteEa(id){
+  showConfirm('ลบ EA นี้? Portfolio ที่ใช้ EA นี้จะไม่ถูกลบ', ()=>{
+    state.eaList = state.eaList.filter(e=>e.id!==id);
+    saveData(); renderAll();
+    showToast('ลบ EA สำเร็จ');
+  });
+}
+
+/* ---------------- RENDER: STATISTICS TAB ---------------- */
+let statsRange = '30d';
+const statsRangeOptions = [
+  {k:'today', label:'วันนี้'},
+  {k:'7d', label:'7 วัน'},
+  {k:'30d', label:'30 วัน'},
+  {k:'90d', label:'90 วัน'},
+  {k:'year', label:'ปีนี้'},
+  {k:'all', label:'ทั้งหมด'},
+];
+function addDaysStr(dateStr, n){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10);
+}
+function daysBetweenStr(a,b){
+  return Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00'))/86400000);
+}
+function statsDateRange(){
+  const to = asOf();
+  let from;
+  if(statsRange==='today') from = to;
+  else if(statsRange==='7d') from = addDaysStr(to,-6);
+  else if(statsRange==='30d') from = addDaysStr(to,-29);
+  else if(statsRange==='90d') from = addDaysStr(to,-89);
+  else if(statsRange==='year') from = to.slice(0,4)+'-01-01';
+  else from = '0000-01-01';
+  return [from, to];
+}
+function statsFilteredPortfolios(){
+  const pf = document.getElementById('statsFilterPortfolio').value;
+  const sym = document.getElementById('statsFilterSymbol').value;
+  const vps = document.getElementById('statsFilterVps').value;
+  const ea = document.getElementById('statsFilterEa').value;
+  return state.portfolios.filter(p=>{
+    if(pf && p.id!==pf) return false;
+    if(sym && p.symbol!==sym) return false;
+    if(vps && p.vpsId!==vps) return false;
+    if(ea && p.ea!==ea) return false;
+    return true;
+  });
+}
+function statsFilteredLogs(fromOverride, toOverride){
+  const [rf, rt] = statsDateRange();
+  const from = fromOverride || rf, to = toOverride || rt;
+  const ids = new Set(statsFilteredPortfolios().map(p=>p.id));
+  return state.dailyLogs.filter(l => ids.has(l.portfolioId) && l.date>=from && l.date<=to);
+}
+function fillStatsFilters(){
+  const pfSel = document.getElementById('statsFilterPortfolio');
+  const symSel = document.getElementById('statsFilterSymbol');
+  const vpsSel = document.getElementById('statsFilterVps');
+  const eaSel = document.getElementById('statsFilterEa');
+  const keep = id => document.getElementById(id).value;
+  const pfV=keep('statsFilterPortfolio'), symV=keep('statsFilterSymbol'), vpsV=keep('statsFilterVps'), eaV=keep('statsFilterEa');
+  pfSel.innerHTML = '<option value="">Portfolio ทั้งหมด</option>' + state.portfolios.map(p=>`<option value="${p.id}">${p.ea}</option>`).join('');
+  const symbols = [...new Set(state.portfolios.map(p=>p.symbol).filter(Boolean))];
+  symSel.innerHTML = '<option value="">คู่เงินทั้งหมด</option>' + symbols.map(s=>`<option value="${s}">${s}</option>`).join('');
+  vpsSel.innerHTML = '<option value="">VPS ทั้งหมด</option>' + state.vpsList.map(v=>`<option value="${v.id}">${v.name}</option>`).join('');
+  const eas = [...new Set(state.portfolios.map(p=>p.ea).filter(Boolean))];
+  eaSel.innerHTML = '<option value="">EA ทั้งหมด</option>' + eas.map(e=>`<option value="${e}">${e}</option>`).join('');
+  [['statsFilterPortfolio',pfV],['statsFilterSymbol',symV],['statsFilterVps',vpsV],['statsFilterEa',eaV]].forEach(([id,v])=>{
+    const el = document.getElementById(id);
+    if([...el.options].some(o=>o.value===v)) el.value = v;
+  });
+}
+function clearStatsFilters(){
+  ['statsFilterPortfolio','statsFilterSymbol','statsFilterVps','statsFilterEa'].forEach(id=>document.getElementById(id).value='');
+  statsRange='30d'; renderStatisticsTab();
+}
+function setStatsRange(k){ statsRange = k; renderStatisticsTab(); }
+function renderStatsRangeButtons(){
+  document.getElementById('statsRangeButtons').innerHTML = statsRangeOptions.map(o=>`
+    <button onclick="setStatsRange('${o.k}')" class="px-3 py-2 rounded-xl text-xs font-semibold" style="${statsRange===o.k?'background:#2FD98A;color:#04120C;':'background:#161F2C;color:#9CACC2;'}">${o.label}</button>
+  `).join('');
+}
+
+function sparklineSvg(values, color, w, h){
+  w=w||110; h=h||34;
+  let v = values.length ? values : [0,0];
+  if(v.length===1) v=[v[0],v[0]];
+  const min=Math.min(...v), max=Math.max(...v);
+  const range=(max-min)||1;
+  const stepX = w/(v.length-1);
+  const pts = v.map((val,i)=>`${(i*stepX).toFixed(1)},${(h-2-((val-min)/range)*(h-4)).toFixed(1)}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+function groupSumByDate(logs, field){
+  const m = {};
+  logs.forEach(l=>{
+    const v = field==='profit' ? (l.endBalance-l.startBalance) : l[field];
+    m[l.date] = (m[l.date]||0) + v;
+  });
+  return Object.keys(m).sort().map(d=>({date:d, value:m[d]}));
+}
+function groupAvgByDate(logs, field){
+  const sums={}, counts={};
+  logs.forEach(l=>{ sums[l.date]=(sums[l.date]||0)+l[field]; counts[l.date]=(counts[l.date]||0)+1; });
+  return Object.keys(sums).sort().map(d=>({date:d, value:sums[d]/counts[d]}));
+}
+
+function computeStatsMetrics(logs){
+  const totalProfit = logs.reduce((s,l)=>s+(l.endBalance-l.startBalance),0);
+  const maxDD = logs.length ? Math.max(...logs.map(l=>l.maxFloatDD||0)) : 0;
+  const avgWinRate = logs.length ? logs.reduce((s,l)=>s+l.winRate,0)/logs.length : 0;
+  const totalTrades = logs.reduce((s,l)=>s+(l.trades||0),0);
+  const grossProfit = logs.reduce((s,l)=>{const p=l.endBalance-l.startBalance; return s+(p>0?p:0);},0);
+  const grossLoss = logs.reduce((s,l)=>{const p=l.endBalance-l.startBalance; return s+(p<0?-p:0);},0);
+  const profitFactor = grossLoss>0 ? grossProfit/grossLoss : (grossProfit>0 ? Infinity : 0);
+  const avgProfitPerTrade = totalTrades>0 ? totalProfit/totalTrades : 0;
+  return {totalProfit, maxDD, avgWinRate, totalTrades, profitFactor, avgProfitPerTrade};
+}
+
+function renderStatsKpis(){
+  const [from,to] = statsDateRange();
+  const logs = statsFilteredLogs();
+  const cur = computeStatsMetrics(logs);
+
+  const lenDays = daysBetweenStr(from,to)+1;
+  const prevTo = addDaysStr(from,-1);
+  const prevFrom = addDaysStr(prevTo, -(lenDays-1));
+  const prevLogs = statsFilteredLogs(prevFrom, prevTo);
+  const prev = computeStatsMetrics(prevLogs);
+
+  const profitSeries = groupSumByDate(logs,'profit').map(x=>x.value);
+  const ddSeries = groupSumByDate(logs,'maxFloatDD').map(x=>x.value);
+  const wrSeries = groupAvgByDate(logs,'winRate').map(x=>x.value);
+  const tradesSeries = groupSumByDate(logs,'trades').map(x=>x.value);
+
+  const profitDeltaPct = prev.totalProfit!==0 ? ((cur.totalProfit-prev.totalProfit)/Math.abs(prev.totalProfit)*100) : (cur.totalProfit>0?100:0);
+  const wrDelta = cur.avgWinRate - prev.avgWinRate;
+  const tradesDelta = cur.totalTrades - prev.totalTrades;
+  const pfDelta = (isFinite(cur.profitFactor)?cur.profitFactor:0) - (isFinite(prev.profitFactor)?prev.profitFactor:0);
+  const avgDelta = cur.avgProfitPerTrade - prev.avgProfitPerTrade;
+
+  const cards = [
+    {icon:'💲', label:'กำไรรวม', value:fmt(cur.totalProfit), sub:pct(profitDeltaPct)+' จากช่วงก่อน', color: cur.totalProfit>=0?'#2FD98A':'#F1546B', spark:profitSeries},
+    {icon:'⚓', label:'Max Drawdown', value:'-'+cur.maxDD.toFixed(2)+'%', sub:'จาก Equity Peak', color:'#F1546B', spark:ddSeries.map(v=>-v)},
+    {icon:'🎯', label:'Win Rate', value:cur.avgWinRate.toFixed(2)+'%', sub:(wrDelta>=0?'+':'')+wrDelta.toFixed(2)+'% จากช่วงก่อน', color:'#2FD98A', spark:wrSeries},
+    {icon:'📋', label:'Total Trades', value:cur.totalTrades, sub:(tradesDelta>=0?'+':'')+tradesDelta+' จากช่วงก่อน', color:'#3AA9F0', spark:tradesSeries},
+    {icon:'⚖️', label:'Profit Factor', value:isFinite(cur.profitFactor)?cur.profitFactor.toFixed(2):'∞', sub:(pfDelta>=0?'+':'')+pfDelta.toFixed(2)+' จากช่วงก่อน', color:'#7C6CF0', spark:profitSeries},
+    {icon:'💼', label:'Avg. Profit per Trade', value:fmt(cur.avgProfitPerTrade), sub:(avgDelta>=0?'+':'')+fmt(avgDelta)+' จากช่วงก่อน', color:'#F0A93B', spark:profitSeries},
+  ];
+  document.getElementById('statsKpiRow').innerHTML = cards.map(c=>`
+    <div class="card p-4">
+      <div class="text-[11px] text-ink-3 mb-1.5">${c.icon} ${c.label}</div>
+      <div class="text-lg md:text-xl font-extrabold num" style="color:${c.color}">${c.value}</div>
+      <div class="text-[10px] text-ink-3 mt-1 mb-2">${c.sub}</div>
+      ${sparklineSvg(c.spark, c.color)}
+    </div>`).join('');
+}
+
+function lineChartSvg(seriesList, dates, opts){
+  opts = opts||{};
+  const w = opts.width||520, h = opts.height||200;
+  const padL=44, padR=10, padT=10, padB=22;
+  const plotW = w-padL-padR, plotH = h-padT-padB;
+  const allVals = seriesList.flatMap(s=>s.values);
+  const min = Math.min(...allVals), max = Math.max(...allVals);
+  const range = (max-min)||1;
+  const n = dates.length;
+  const stepX = n>1 ? plotW/(n-1) : 0;
+  const yFor = v => padT + plotH - ((v-min)/range)*plotH;
+  const xFor = i => padL + i*stepX;
+  const ticks = 4;
+  let gridHtml='';
+  for(let i=0;i<=ticks;i++){
+    const val = min + (range*i/ticks);
+    const y = yFor(val);
+    gridHtml += `<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" stroke="#212C3B" stroke-width="1"/>`;
+    gridHtml += `<text x="${padL-6}" y="${y+3}" text-anchor="end" font-size="9" fill="#5E7089">${val>=1000?(val/1000).toFixed(1)+'K':val.toFixed(0)}</text>`;
+  }
+  let xLabels='';
+  const labelIdxs = n>1 ? [0, Math.floor((n-1)/2), n-1] : [0];
+  labelIdxs.forEach(i=>{
+    xLabels += `<text x="${xFor(i)}" y="${h-6}" text-anchor="middle" font-size="9" fill="#5E7089">${(dates[i]||'').slice(5)}</text>`;
+  });
+  const linesHtml = seriesList.map(s=>{
+    const pts = s.values.map((v,i)=>`${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2" stroke-dasharray="${s.dashed?'4,3':'0'}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }).join('');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${gridHtml}${linesHtml}${xLabels}</svg>`;
+}
+
+function barChartSvg(values, dates, opts){
+  opts = opts||{};
+  const w = opts.width||520, h = opts.height||200;
+  const padL=40, padR=10, padT=10, padB=22;
+  const plotW = w-padL-padR, plotH = h-padT-padB;
+  const maxAbs = Math.max(1, ...values.map(v=>Math.abs(v)));
+  const zeroY = padT + plotH/2;
+  const scale = (plotH/2)/maxAbs;
+  const n = values.length;
+  const bw = n ? Math.max(2,(plotW/n)*0.55) : 0;
+  let gridHtml = `<line x1="${padL}" y1="${zeroY}" x2="${w-padR}" y2="${zeroY}" stroke="#2A3849" stroke-width="1"/>`;
+  [maxAbs, maxAbs/2, -maxAbs/2, -maxAbs].forEach(val=>{
+    const y = zeroY - val*scale;
+    gridHtml += `<text x="${padL-6}" y="${y+3}" text-anchor="end" font-size="9" fill="#5E7089">${Math.abs(val)>=1000?(val/1000).toFixed(1)+'K':val.toFixed(0)}</text>`;
+  });
+  let bars = '';
+  values.forEach((v,i)=>{
+    const stepX = plotW/n;
+    const cx = padL + stepX*i + stepX/2;
+    const barH = Math.abs(v)*scale;
+    const y = v>=0 ? zeroY-barH : zeroY;
+    bars += `<rect x="${(cx-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,barH).toFixed(1)}" rx="2" fill="${v>=0?'#2FD98A':'#F1546B'}" opacity="0.9"/>`;
+  });
+  let xLabels='';
+  const labelStep = Math.max(1, Math.ceil(n/6));
+  dates.forEach((d,i)=>{
+    if(i%labelStep===0 || i===n-1){
+      const stepX = plotW/n;
+      const cx = padL + stepX*i + stepX/2;
+      xLabels += `<text x="${cx.toFixed(1)}" y="${h-6}" text-anchor="middle" font-size="9" fill="#5E7089">${(d||'').slice(5)}</text>`;
+    }
+  });
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${gridHtml}${bars}${xLabels}</svg>`;
+}
+
+function renderEquityChart(){
+  const logs = statsFilteredLogs().sort((a,b)=>a.date.localeCompare(b.date));
+  const byDate = groupSumByDate(logs,'profit');
+  let running = STARTING_CAPITAL;
+  const dates = byDate.map(x=>x.date);
+  const equity = byDate.map(x=>{ running += x.value; return running; });
+  const ddByDate = groupAvgByDate(logs,'maxFloatDD');
+  const ddMap = Object.fromEntries(ddByDate.map(x=>[x.date,x.value]));
+  const balance = dates.map((d,i)=> equity[i] - (equity[i]*(ddMap[d]||0)/100)*0.4);
+  if(!dates.length){
+    document.getElementById('statsEquityChart').innerHTML = '<div class="text-ink-3 text-sm py-8 text-center">ยังไม่มีข้อมูลในช่วงเวลานี้</div>';
+    return;
+  }
+  document.getElementById('statsEquityChart').innerHTML = `
+    <div class="flex items-center gap-3 text-[11px] text-ink-3 mb-1">
+      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 inline-block" style="background:#2FD98A"></span>Equity</span>
+      <span class="flex items-center gap-1"><span class="w-2.5 h-0.5 inline-block" style="background:#5E7089;border-top:1px dashed #9CACC2;"></span>Balance</span>
+    </div>
+    ${lineChartSvg([{values:equity,color:'#2FD98A'},{values:balance,color:'#5E7089',dashed:true}], dates, {width:480,height:200})}`;
+}
+function renderDailyPlChart(){
+  const logs = statsFilteredLogs();
+  const byDate = groupSumByDate(logs,'profit');
+  if(!byDate.length){ document.getElementById('statsDailyPlChart').innerHTML = '<div class="text-ink-3 text-sm py-8 text-center">ยังไม่มีข้อมูลในช่วงเวลานี้</div>'; return; }
+  document.getElementById('statsDailyPlChart').innerHTML = barChartSvg(byDate.map(x=>x.value), byDate.map(x=>x.date), {width:480,height:200});
+}
+function fillStatsYearSelect(){
+  const years = [...new Set(state.dailyLogs.map(l=>l.date.slice(0,4)))].sort();
+  const sel = document.getElementById('statsYearSelect');
+  const current = sel.value;
+  sel.innerHTML = years.map(y=>`<option value="${y}">${y}</option>`).join('') || `<option value="${new Date().getFullYear()}">${new Date().getFullYear()}</option>`;
+  if(years.includes(current)) sel.value = current;
+  else sel.value = years[years.length-1] || '';
+}
+function renderMonthlyChart(){
+  const year = document.getElementById('statsYearSelect').value;
+  const ids = new Set(statsFilteredPortfolios().map(p=>p.id));
+  const logs = state.dailyLogs.filter(l=> ids.has(l.portfolioId) && l.date.slice(0,4)===year);
+  const monthNames = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const sums = new Array(12).fill(0);
+  logs.forEach(l=>{ const m = parseInt(l.date.slice(5,7),10)-1; sums[m] += (l.endBalance-l.startBalance); });
+  document.getElementById('statsMonthlyChart').innerHTML = barChartSvg(sums, monthNames, {width:480,height:200});
+}
+
+function renderStatsByPortfolioTable(){
+  const pfList = statsFilteredPortfolios();
+  const [from,to] = statsDateRange();
+  const rows = pfList.map(p=>{
+    const logs = state.dailyLogs.filter(l=>l.portfolioId===p.id && l.date>=from && l.date<=to);
+    const profit = logs.reduce((s,l)=>s+(l.endBalance-l.startBalance),0);
+    const startSum = logs.reduce((s,l)=>s+l.startBalance,0) || p.startBalance || 1;
+    const pctv = startSum ? profit/startSum*100 : 0;
+    const trades = logs.reduce((s,l)=>s+(l.trades||0),0);
+    const wr = logs.length ? logs.reduce((s,l)=>s+l.winRate,0)/logs.length : p.winRate;
+    return {p, profit, pctv, trades, wr};
+  }).sort((a,b)=>b.profit-a.profit);
+  const head = `<thead><tr class="text-ink-3 text-left border-b border-base-line">
+    <th class="py-2 pr-2 font-medium">Portfolio</th><th class="py-2 pr-2 font-medium">กำไร (USD)</th>
+    <th class="py-2 pr-2 font-medium">กำไร (%)</th><th class="py-2 pr-2 font-medium">Max DD</th>
+    <th class="py-2 pr-2 font-medium">Win Rate</th><th class="py-2 pr-1 font-medium">Trades</th></tr></thead>`;
+  const body = rows.map(r=>`<tr class="border-b border-base-line/60">
+    <td class="py-2 pr-2 whitespace-nowrap"><span class="inline-block w-1.5 h-1.5 rounded-full mr-1" style="background:${dotColor(r.p.status)}"></span>${r.p.ea} <span class="text-ink-3">(${r.p.symbol})</span></td>
+    <td class="py-2 pr-2 num whitespace-nowrap ${r.profit>=0?'text-mint':'text-rose'}">${fmt(r.profit)}</td>
+    <td class="py-2 pr-2 num whitespace-nowrap ${r.pctv>=0?'text-mint':'text-rose'}">${pct(r.pctv)}</td>
+    <td class="py-2 pr-2 num whitespace-nowrap text-amber">${(r.p.ddFromPeak||0).toFixed(2)}%</td>
+    <td class="py-2 pr-2 num whitespace-nowrap">${r.wr.toFixed(2)}%</td>
+    <td class="py-2 pr-1 num whitespace-nowrap">${r.trades}</td></tr>`).join('');
+  document.getElementById('statsByPortfolioTable').innerHTML = head + '<tbody>' + (body||'<tr><td class="py-3 text-ink-3" colspan="6">ไม่พบข้อมูล</td></tr>') + '</tbody>';
+}
+
+function renderWinLossAnalysis(){
+  const logs = statsFilteredLogs();
+  let win=0, loss=0, flat=0;
+  logs.forEach(l=>{ const p=l.endBalance-l.startBalance; if(p>0) win++; else if(p<0) loss++; else flat++; });
+  const total = win+loss+flat || 1;
+  const donut = document.getElementById('statsWinLossDonut');
+  const wDeg = win/total*360, lDeg = loss/total*360;
+  donut.style.background = `conic-gradient(#2FD98A 0deg ${wDeg}deg, #F1546B ${wDeg}deg ${wDeg+lDeg}deg, #5E7089 ${wDeg+lDeg}deg 360deg)`;
+  donut.innerHTML = `<div class="w-full h-full rounded-full flex items-center justify-center" style="background:radial-gradient(closest-side, #111823 62%, transparent 63%);">
+    <div class="text-center"><div class="text-base font-extrabold num">${total}</div><div class="text-[9px] text-ink-3">รายการ</div></div></div>`;
+  document.getElementById('statsWinLossLegend').innerHTML = `
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#2FD98A"></span>Win</span><span class="num font-semibold">${win} (${(win/total*100).toFixed(1)}%)</span></div>
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#F1546B"></span>Loss</span><span class="num font-semibold">${loss} (${(loss/total*100).toFixed(1)}%)</span></div>
+    <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full inline-block" style="background:#5E7089"></span>เสมอ</span><span class="num font-semibold">${flat} (${(flat/total*100).toFixed(1)}%)</span></div>`;
+  const sorted = [...logs].sort((a,b)=>(b.endBalance-b.startBalance)-(a.endBalance-a.startBalance));
+  const best = sorted[0], worst = sorted[sorted.length-1];
+  document.getElementById('statsBestWin').textContent = best ? fmt(best.endBalance-best.startBalance) : '-';
+  document.getElementById('statsWorstLoss').textContent = worst ? fmt(worst.endBalance-worst.startBalance) : '-';
+}
+
+function heatColor(val, maxAbs){
+  if(!maxAbs) return 'transparent';
+  const t = Math.min(1, Math.abs(val)/maxAbs);
+  if(val>=0) return `rgba(47,217,138,${(0.12+t*0.55).toFixed(2)})`;
+  return `rgba(241,84,107,${(0.12+t*0.55).toFixed(2)})`;
+}
+function renderHeatmap(){
+  const logs = statsFilteredLogs();
+  const dayNames = ['อา.','จ.','อ.','พ.','พฤ.','ศ.','ส.'];
+  const workDays = [1,2,3,4,5];
+  const symbols = [...new Set(statsFilteredPortfolios().map(p=>p.symbol).filter(Boolean))];
+  if(!symbols.length || !logs.length){ document.getElementById('statsHeatmap').innerHTML = '<div class="text-ink-3 text-sm py-6 text-center">ยังไม่มีข้อมูลในช่วงเวลานี้</div>'; return; }
+  const pfSymbol = Object.fromEntries(state.portfolios.map(p=>[p.id,p.symbol]));
+  const grid = {};
+  logs.forEach(l=>{
+    const sym = pfSymbol[l.portfolioId]; if(!symbols.includes(sym)) return;
+    const dow = new Date(l.date+'T00:00:00').getDay();
+    if(!workDays.includes(dow)) return;
+    const pctv = l.startBalance ? (l.endBalance-l.startBalance)/l.startBalance*100 : 0;
+    const key = sym+'|'+dow;
+    if(!grid[key]) grid[key] = {sum:0,count:0};
+    grid[key].sum += pctv; grid[key].count++;
+  });
+  let maxAbs = 0.01;
+  Object.values(grid).forEach(g=>{ maxAbs = Math.max(maxAbs, Math.abs(g.sum/g.count)); });
+  let html = `<table class="w-full text-[11px]"><thead><tr><th class="text-left text-ink-3 font-medium pb-1.5"></th>${workDays.map(d=>`<th class="text-center text-ink-3 font-medium pb-1.5">${dayNames[d]}</th>`).join('')}</tr></thead><tbody>`;
+  symbols.forEach(sym=>{
+    html += `<tr><td class="py-1 pr-2 font-medium whitespace-nowrap">${sym}</td>`;
+    workDays.forEach(d=>{
+      const g = grid[sym+'|'+d];
+      const val = g ? g.sum/g.count : null;
+      html += `<td class="text-center py-1 px-0.5"><div class="rounded-md py-1.5 num" style="background:${val===null?'transparent':heatColor(val,maxAbs)};color:${val===null?'#5E7089':'#EAF0F7'};">${val===null?'-':(val>=0?'+':'')+val.toFixed(2)+'%'}</div></td>`;
+    });
+    html += `</tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('statsHeatmap').innerHTML = html;
+}
+
+function statsTopTable(logs, dir){
+  const sorted = [...logs].sort((a,b)=> dir==='win' ? (b.endBalance-b.startBalance)-(a.endBalance-a.startBalance) : (a.endBalance-a.startBalance)-(b.endBalance-b.startBalance));
+  const top5 = sorted.filter(l=> dir==='win' ? (l.endBalance-l.startBalance)>0 : (l.endBalance-l.startBalance)<0).slice(0,5);
+  const head = `<thead><tr class="text-ink-3 text-left border-b border-base-line">
+    <th class="py-2 pr-2 font-medium">EA / Portfolio</th><th class="py-2 pr-2 font-medium">คู่เงิน</th>
+    <th class="py-2 pr-2 font-medium">${dir==='win'?'กำไร':'ขาดทุน'} (USD)</th><th class="py-2 pr-2 font-medium">%</th><th class="py-2 pr-1 font-medium">วันที่</th></tr></thead>`;
+  const body = top5.map(l=>{
+    const p = portfolioById(l.portfolioId);
+    const profit = l.endBalance-l.startBalance;
+    const pctv = l.startBalance ? profit/l.startBalance*100 : 0;
+    return `<tr class="border-b border-base-line/60">
+      <td class="py-2 pr-2 whitespace-nowrap">${p?p.ea:'-'}</td>
+      <td class="py-2 pr-2 num whitespace-nowrap">${p?p.symbol:'-'}</td>
+      <td class="py-2 pr-2 num whitespace-nowrap ${profit>=0?'text-mint':'text-rose'}">${fmt(profit)}</td>
+      <td class="py-2 pr-2 num whitespace-nowrap ${pctv>=0?'text-mint':'text-rose'}">${pct(pctv)}</td>
+      <td class="py-2 pr-1 num whitespace-nowrap text-ink-3">${l.date}</td></tr>`;
+  }).join('');
+  return head + '<tbody>' + (body||'<tr><td class="py-3 text-ink-3" colspan="5">ไม่พบข้อมูล</td></tr>') + '</tbody>';
+}
+
+function renderStatsSummary(){
+  const allTime = state.dailyLogs;
+  const totalProfitAllTime = allTime.reduce((s,l)=>s+(l.endBalance-l.startBalance),0);
+  const currentBalance = STARTING_CAPITAL + totalProfitAllTime;
+  const returnPct = STARTING_CAPITAL ? totalProfitAllTime/STARTING_CAPITAL*100 : 0;
+  const dates = allTime.map(l=>l.date).sort();
+  const daysActive = dates.length ? (daysBetweenStr(dates[0], asOf())+1) : 0;
+  const rows = [
+    ['เริ่มต้น', fmt(STARTING_CAPITAL), 'text-ink-1'],
+    ['ยอดคงเหลือปัจจุบัน', fmt(currentBalance), 'text-ink-1'],
+    ['กำไรสุทธิ', fmt(totalProfitAllTime), totalProfitAllTime>=0?'text-mint':'text-rose'],
+    ['ผลตอบแทนรวม', pct(returnPct), returnPct>=0?'text-mint':'text-rose'],
+    ['ระยะเวลาที่ใช้งาน', daysActive+' วัน', 'text-ink-1'],
+  ];
+  document.getElementById('statsSummary').innerHTML = rows.map(([label,val,cls])=>`
+    <div class="flex items-center justify-between"><span class="text-ink-3">${label}</span><span class="num font-semibold ${cls}">${val}</span></div>`).join('');
+}
+
+function renderStatisticsTab(){
+  fillStatsFilters();
+  fillStatsYearSelect();
+  renderStatsRangeButtons();
+  renderStatsKpis();
+  renderEquityChart();
+  renderDailyPlChart();
+  renderMonthlyChart();
+  renderStatsByPortfolioTable();
+  renderWinLossAnalysis();
+  renderHeatmap();
+  document.getElementById('statsTopWinTable').innerHTML = statsTopTable(statsFilteredLogs(), 'win');
+  document.getElementById('statsTopLossTable').innerHTML = statsTopTable(statsFilteredLogs(), 'loss');
+  renderStatsSummary();
+}
+['statsFilterPortfolio','statsFilterSymbol','statsFilterVps','statsFilterEa','statsYearSelect'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', renderStatisticsTab);
+});
+
+/* ---------------- MODALS ---------------- */
+function openModal(title, html){
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('modalBackdrop').classList.add('active');
+}
+function closeModal(){ document.getElementById('modalBackdrop').classList.remove('active'); }
+
+function openVpsModal(id){
+  const v = id ? vpsById(id) : null;
+  openModal(v?'แก้ไข VPS':'เพิ่ม VPS', `
+    <div class="grid grid-cols-2 gap-2">
+      <div><label class="block text-xs text-ink-3 mb-1">ชื่อ VPS</label><input type="text" id="f_name" class="w-full" value="${v?v.name:''}" placeholder="VPS #5"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">ป้ายกำกับ</label><input type="text" id="f_label" class="w-full" value="${v&&v.label?v.label:''}" placeholder="Production"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">IP Address</label><input type="text" id="f_ip" class="w-full" value="${v?v.ip:''}" placeholder="103.21.445.15"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">ประเทศ/ที่ตั้ง</label><input type="text" id="f_country" class="w-full" value="${v&&v.country?v.country:''}" placeholder="ประเทศไทย"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Provider</label><input type="text" id="f_provider" class="w-full" value="${v&&v.provider?v.provider:''}" placeholder="Cloudzy"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">ค่าใช้จ่าย/เดือน (USD)</label><input type="number" step="0.01" id="f_cost" class="w-full" value="${v&&v.cost?v.cost:''}" placeholder="30"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">CPU</label><input type="text" id="f_cpu" class="w-full" value="${v&&v.cpu?v.cpu:''}" placeholder="4 vCPU"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">RAM</label><input type="text" id="f_ram" class="w-full" value="${v&&v.ram?v.ram:''}" placeholder="8 GB"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Disk</label><input type="text" id="f_disk" class="w-full" value="${v&&v.disk?v.disk:''}" placeholder="100 GB NVMe"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Uptime</label><input type="text" id="f_uptime" class="w-full" value="${v?v.uptime:''}" placeholder="1 วัน"></div>
+    </div>
+    <label class="block text-xs text-ink-3 mb-1 mt-2">สถานะ</label>
+    <select id="f_status" class="w-full mb-2">
+      ${['online','warn','error','offline'].map(s=>`<option value="${s}" ${v&&v.status===s?'selected':''}>${statusLabel(s)}</option>`).join('')}
+    </select>
+    <label class="block text-xs text-ink-3 mb-1">แท็ก (Primary / Active / Backup / Offline)</label>
+    <input type="text" id="f_tag" class="w-full mb-2" value="${v&&v.tag?v.tag:''}" placeholder="Active">
+    <label class="block text-xs text-ink-3 mb-1">หมายเหตุ (ถ้ามี)</label>
+    <input type="text" id="f_note" class="w-full mb-4" value="${v&&v.note?v.note:''}" placeholder="เช่น High CPU 92%">
+    <div class="flex gap-2">
+      <button class="btn btn-primary flex-1" onclick="saveVps('${v?v.id:''}')">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    </div>
+  `);
+}
+function saveVps(id){
+  const name = document.getElementById('f_name').value.trim();
+  if(!name) { showToast('กรุณากรอกชื่อ VPS', 'warn'); return; }
+  const data = {
+    name, ip: document.getElementById('f_ip').value.trim(),
+    label: document.getElementById('f_label').value.trim(),
+    country: document.getElementById('f_country').value.trim(),
+    provider: document.getElementById('f_provider').value.trim(),
+    cost: parseFloat(document.getElementById('f_cost').value)||0,
+    cpu: document.getElementById('f_cpu').value.trim(),
+    ram: document.getElementById('f_ram').value.trim(),
+    disk: document.getElementById('f_disk').value.trim(),
+    uptime: document.getElementById('f_uptime').value.trim(),
+    status: document.getElementById('f_status').value,
+    tag: document.getElementById('f_tag').value.trim(),
+    note: document.getElementById('f_note').value.trim(),
+  };
+  if(id){ Object.assign(vpsById(id), data); }
+  else { state.vpsList.push({id:uid(), ...data}); }
+  saveData(); closeModal(); renderAll();
+  showToast(id?'บันทึกการแก้ไข VPS สำเร็จ':'เพิ่ม VPS สำเร็จ');
+}
+function deleteVps(id){
+  showConfirm('ลบ VPS นี้? พอร์ตที่ผูกกับ VPS นี้จะไม่ถูกลบ แต่จะกลายเป็น "ยังไม่ผูก VPS"', ()=>{
+    state.portfolios.forEach(p=>{ if(p.vpsId===id) p.vpsId = null; });
+    state.vpsList = state.vpsList.filter(v=>v.id!==id);
+    saveData(); renderAll();
+    showToast('ลบ VPS สำเร็จ');
+  });
+}
+
+const badgeMeta = {
+  active:  {label:'Active',  chip:'background:rgba(47,217,138,.12);color:#2FD98A;', dot:'#2FD98A', main:'กำลังใช้งาน', sub:'รันปกติ'},
+  warning: {label:'Warning', chip:'background:rgba(240,169,59,.12);color:#F0A93B;', dot:'#F0A93B', main:'เสี่ยงสูง',    sub:'Drawdown สูง'},
+  loss:    {label:'Loss',    chip:'background:rgba(241,84,107,.12);color:#F1546B;', dot:'#F1546B', main:'ขาดทุน',      sub:'หยุดชั่วคราว'},
+  paused:  {label:'Paused',  chip:'background:rgba(94,112,137,.15);color:#9CACC2;', dot:'#F0A93B', main:'หยุดชั่วคราว', sub:'รอการตรวจสอบ'},
+};
+
+function openPortfolioModal(id){
+  const p = id ? portfolioById(id) : null;
+  const hasLogs = p && state.dailyLogs.some(l=>l.portfolioId===p.id);
+  const vpsOptions = '<option value="" '+(p&&!p.vpsId?'selected':'')+'>— ไม่ผูก VPS —</option>' + state.vpsList.map(v=>`<option value="${v.id}" ${p&&p.vpsId===v.id?'selected':''}>${v.name}</option>`).join('');
+  openModal(p?'แก้ไขพอร์ต':'เพิ่มพอร์ต', `
+    <label class="block text-xs text-ink-3 mb-1">VPS</label>
+    <select id="f_vps" class="w-full mb-2">${vpsOptions}</select>
+    <div class="grid grid-cols-2 gap-2">
+      <div><label class="block text-xs text-ink-3 mb-1">ชื่อ EA</label><input type="text" id="f_ea" class="w-full" value="${p?p.ea:''}" placeholder="GARAI v68"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">เวอร์ชัน EA</label><input type="text" id="f_eaver" class="w-full" value="${p&&p.eaVersion?p.eaVersion:''}" placeholder="v1.0"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Magic</label><input type="text" id="f_magic" class="w-full" value="${p?p.magic:''}" placeholder="680001"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Broker</label><input type="text" id="f_broker" class="w-full" value="${p&&p.broker?p.broker:''}" placeholder="XM"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">เลขบัญชี</label><input type="text" id="f_account" class="w-full" value="${p?p.account:''}" placeholder="88888888"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Leverage</label><input type="text" id="f_leverage" class="w-full" value="${p&&p.leverage?p.leverage:''}" placeholder="1:100"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">คู่เงิน</label><input type="text" id="f_symbol" class="w-full" value="${p?p.symbol:''}" placeholder="XAUUSD"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Lot</label><input type="text" id="f_lot" class="w-full" value="${p?p.lot:''}" placeholder="0.10"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Balance ปัจจุบัน</label><input type="number" step="0.01" id="f_balance" class="w-full" value="${p?p.balance:''}" placeholder="10000"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">เป้าหมายรายเดือน (USD)</label><input type="number" step="1" id="f_target" class="w-full" value="${p&&p.monthlyTarget?p.monthlyTarget:''}" placeholder="2000"></div>
+    </div>
+    <div class="rounded-lg mt-2 mb-2 px-3 py-2.5" style="background:#0D131B;border:1px solid #263447;">
+      <div class="text-xs text-ink-3 mb-2">ผลงาน (ดึงอัตโนมัติจาก Daily Log ล่าสุด)</div>
+      ${hasLogs ? `
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div><div class="num font-bold text-mint">${p.winRate.toFixed(1)}%</div><div class="text-[10px] text-ink-3 mt-0.5">Win Rate</div></div>
+          <div><div class="num font-bold text-rose">${(p.ddFromPeak||0).toFixed(2)}%</div><div class="text-[10px] text-ink-3 mt-0.5">Max Drawdown</div></div>
+          <div><div class="num font-bold" style="color:${p.healthScore>=80?'#2FD98A':p.healthScore>=50?'#F0A93B':'#F1546B'}">${p.healthScore}</div><div class="text-[10px] text-ink-3 mt-0.5">Health Score</div></div>
+        </div>` : `<div class="text-xs text-ink-3">ยังไม่มีข้อมูล — ค่าเหล่านี้จะคำนวณอัตโนมัติหลังบันทึก Daily Log ครั้งแรกสำหรับพอร์ตนี้</div>`}
+    </div>
+    <label class="block text-xs text-ink-3 mb-1 mt-2">การเชื่อมต่อ VPS</label>
+    <select id="f_pstatus" class="w-full mb-2">
+      ${['online','warn','error','offline'].map(s=>`<option value="${s}" ${p&&p.status===s?'selected':''}>${statusLabel(s)}</option>`).join('')}
+    </select>
+    <label class="block text-xs text-ink-3 mb-1">สถานะพอร์ต</label>
+    <select id="f_badge" class="w-full mb-4">
+      ${Object.keys(badgeMeta).map(k=>`<option value="${k}" ${p&&p.badge===k?'selected':''}>${badgeMeta[k].label} — ${badgeMeta[k].main}</option>`).join('')}
+    </select>
+    <div class="flex gap-2">
+      <button class="btn btn-primary flex-1" onclick="savePortfolio('${p?p.id:''}')">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    </div>
+  `);
+}
+function savePortfolio(id){
+  const ea = document.getElementById('f_ea').value.trim();
+  const vpsId = document.getElementById('f_vps').value || null;
+  if(!ea) { showToast('กรุณากรอกชื่อ EA', 'warn'); return; }
+  const data = {
+    vpsId, ea,
+    eaVersion: document.getElementById('f_eaver').value.trim(),
+    magic: document.getElementById('f_magic').value.trim(),
+    broker: document.getElementById('f_broker').value.trim(),
+    account: document.getElementById('f_account').value.trim(),
+    leverage: document.getElementById('f_leverage').value.trim(),
+    symbol: document.getElementById('f_symbol').value.trim().toUpperCase(),
+    lot: document.getElementById('f_lot').value.trim(),
+    balance: parseFloat(document.getElementById('f_balance').value)||0,
+    monthlyTarget: parseFloat(document.getElementById('f_target').value)||0,
+    status: document.getElementById('f_pstatus').value,
+    badge: document.getElementById('f_badge').value,
+  };
+  if(id){ const p = portfolioById(id); Object.assign(p, data); }
+  else { state.portfolios.push({id:uid(), code:'#'+String(state.portfolios.length+1).padStart(3,'0'), favorite:false, startBalance:data.balance, winRate:0, healthScore:0, ddFromPeak:0, trades:0, ...data}); }
+  saveData(); closeModal(); renderAll();
+  showToast(id?'บันทึกการแก้ไข Portfolio สำเร็จ':'เพิ่ม Portfolio สำเร็จ');
+}
+function toggleFavorite(id){
+  const p = portfolioById(id); if(!p) return;
+  p.favorite = !p.favorite; saveData(); renderAll();
+}
+function deletePortfolio(id){
+  showConfirm('ลบพอร์ตนี้? บันทึกประจำวันที่เกี่ยวข้องจะถูกลบด้วย', ()=>{
+    state.dailyLogs = state.dailyLogs.filter(l=>l.portfolioId!==id);
+    state.portfolios = state.portfolios.filter(p=>p.id!==id);
+    saveData(); renderAll();
+    showToast('ลบ Portfolio สำเร็จ');
+  });
+}
+
+function openLogModal(id){
+  const l = id ? state.dailyLogs.find(x=>x.id===id) : null;
+  const pOptions = state.portfolios.map(p=>`<option value="${p.id}" ${l&&l.portfolioId===p.id?'selected':''}>${p.ea} (${p.symbol})</option>`).join('');
+  openModal(l?'แก้ไขบันทึก':'เพิ่มบันทึกประจำวัน', `
+    <label class="block text-xs text-ink-3 mb-1">วันที่</label>
+    <input type="date" id="f_date" class="w-full mb-2" value="${l?l.date:new Date().toISOString().slice(0,10)}">
+    <label class="block text-xs text-ink-3 mb-1">พอร์ต</label>
+    <select id="f_portfolio" class="w-full mb-2">${pOptions || '<option value="">ยังไม่มีพอร์ต</option>'}</select>
+    <div class="grid grid-cols-2 gap-2">
+      <div><label class="block text-xs text-ink-3 mb-1">เริ่มต้น Balance</label><input type="number" step="0.01" id="f_start" class="w-full" value="${l?l.startBalance:''}" oninput="updateLogHealthPreview()"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">สิ้นสุด Balance</label><input type="number" step="0.01" id="f_end" class="w-full" value="${l?l.endBalance:''}" oninput="updateLogHealthPreview()"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">Max Float DD %</label><input type="number" step="0.01" id="f_dd" class="w-full" value="${l?l.maxFloatDD:''}" oninput="updateLogHealthPreview()"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">จำนวนออเดอร์ทั้งหมด</label><input type="number" id="f_trades" class="w-full" value="${l?l.trades:''}" oninput="updateLogWinRatePreview()"></div>
+      <div><label class="block text-xs text-ink-3 mb-1">จำนวนออเดอร์ที่ชนะ</label><input type="number" id="f_wintrades" class="w-full" value="${l?(l.winTrades!==undefined?l.winTrades:Math.round((l.winRate||0)/100*(l.trades||0))):''}" oninput="updateLogWinRatePreview()"></div>
+    </div>
+    <div class="flex items-center justify-between mt-2 mb-1.5 px-3 py-2 rounded-lg" style="background:#0D131B;border:1px solid #263447;">
+      <span class="text-xs text-ink-3">Win Rate (คำนวณอัตโนมัติ)</span>
+      <span class="num font-bold text-mint" id="f_wr_preview">${l?l.winRate.toFixed(2):'0.00'}%</span>
+    </div>
+    <div class="flex items-center justify-between mb-2 px-3 py-2 rounded-lg" style="background:#0D131B;border:1px solid #263447;">
+      <span class="text-xs text-ink-3">Health Score (คำนวณอัตโนมัติ)</span>
+      <span class="num font-bold" id="f_hs_preview">${l?l.healthScore:'0'}</span>
+    </div>
+    <label class="block text-xs text-ink-3 mb-1 mt-2">สถานะ</label>
+    <select id="f_lstatus" class="w-full mb-2" onchange="updateLogHealthPreview()">
+      ${['online','warn','error','offline'].map(s=>`<option value="${s}" ${l&&l.status===s?'selected':''}>${statusLabel(s)}</option>`).join('')}
+    </select>
+    <label class="block text-xs text-ink-3 mb-1">หมายเหตุ</label>
+    <input type="text" id="f_lnote" class="w-full mb-4" value="${l&&l.note?l.note:''}" placeholder="-">
+    <div class="flex gap-2">
+      <button class="btn btn-primary flex-1" onclick="saveLog('${l?l.id:''}')">บันทึก</button>
+      <button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+    </div>
+  `);
+  updateLogHealthPreview();
+}
+function updateLogWinRatePreview(){
+  const trades = parseInt(document.getElementById('f_trades').value)||0;
+  const winTrades = parseInt(document.getElementById('f_wintrades').value)||0;
+  const wr = trades>0 ? Math.min(100,(winTrades/trades)*100) : 0;
+  const el = document.getElementById('f_wr_preview');
+  el.textContent = wr.toFixed(2)+'%';
+  el.className = 'num font-bold ' + (wr>=50?'text-mint':wr>0?'text-amber':'text-ink-3');
+  updateLogHealthPreview();
+}
+function calcHealthScore(winRate, maxDD, profitPct, status){
+  const winComp = Math.max(0, Math.min(40, (winRate/100)*40));
+  const ddComp = Math.max(0, 35 - maxDD*1.75);
+  const profitComp = Math.max(0, Math.min(25, 12.5 + profitPct*2.5));
+  let score = winComp + ddComp + profitComp;
+  if(status==='offline') score = Math.min(score, 20);
+  else if(status==='error') score = Math.min(score, 45);
+  else if(status==='warn') score = Math.min(score, 65);
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+function updateLogHealthPreview(){
+  const trades = parseInt(document.getElementById('f_trades').value)||0;
+  const winTrades = parseInt(document.getElementById('f_wintrades').value)||0;
+  const winRate = trades>0 ? Math.min(100,(winTrades/trades)*100) : 0;
+  const dd = parseFloat(document.getElementById('f_dd').value)||0;
+  const start = parseFloat(document.getElementById('f_start').value)||0;
+  const end = parseFloat(document.getElementById('f_end').value)||0;
+  const status = document.getElementById('f_lstatus').value;
+  const profitPct = start>0 ? ((end-start)/start)*100 : 0;
+  const score = calcHealthScore(winRate, dd, profitPct, status);
+  const el = document.getElementById('f_hs_preview');
+  if(!el) return;
+  el.textContent = score;
+  el.style.color = score>=80?'#2FD98A':score>=50?'#F0A93B':'#F1546B';
+}
+function saveLog(id){
+  const portfolioId = document.getElementById('f_portfolio').value;
+  const date = document.getElementById('f_date').value;
+  if(!portfolioId || !date) { showToast('กรุณาเลือกพอร์ตและวันที่', 'warn'); return; }
+  const trades = parseInt(document.getElementById('f_trades').value)||0;
+  let winTrades = parseInt(document.getElementById('f_wintrades').value)||0;
+  if(winTrades > trades) winTrades = trades;
+  const winRate = trades>0 ? (winTrades/trades)*100 : 0;
+  const startBalance = parseFloat(document.getElementById('f_start').value)||0;
+  const endBalance = parseFloat(document.getElementById('f_end').value)||0;
+  const maxFloatDD = parseFloat(document.getElementById('f_dd').value)||0;
+  const status = document.getElementById('f_lstatus').value;
+  const profitPct = startBalance>0 ? ((endBalance-startBalance)/startBalance)*100 : 0;
+  const healthScore = calcHealthScore(winRate, maxFloatDD, profitPct, status);
+  const data = {
+    date, portfolioId,
+    startBalance, endBalance, maxFloatDD,
+    trades, winTrades, winRate, healthScore, status,
+    note: document.getElementById('f_lnote').value.trim(),
+  };
+  if(id){ const l = state.dailyLogs.find(x=>x.id===id); Object.assign(l, data); }
+  else { state.dailyLogs.push({id:uid(), ...data}); }
+  // sync portfolio balance and performance metrics to the latest log for that portfolio
+  resyncPortfolioFromLogs(portfolioId);
+  saveData(); closeModal(); renderAll();
+  showToast(id?'บันทึกการแก้ไขสำเร็จ':'บันทึกประจำวันสำเร็จ');
+}
+function resyncPortfolioFromLogs(portfolioId){
+  const p = portfolioById(portfolioId);
+  if(!p) return;
+  const latest = [...state.dailyLogs].filter(x=>x.portfolioId===portfolioId).sort((a,b)=>a.date.localeCompare(b.date)).pop();
+  if(latest){
+    p.balance = latest.endBalance; p.winRate = latest.winRate; p.healthScore = latest.healthScore;
+    p.status = latest.status; p.ddFromPeak = -Math.abs(latest.maxFloatDD);
+  } else {
+    p.winRate = 0; p.healthScore = 0; p.ddFromPeak = 0;
+  }
+}
+function deleteLog(id){
+  showConfirm('ลบบันทึกนี้?', ()=>{
+    const log = state.dailyLogs.find(l=>l.id===id);
+    state.dailyLogs = state.dailyLogs.filter(l=>l.id!==id);
+    if(log) resyncPortfolioFromLogs(log.portfolioId);
+    saveData(); renderAll();
+    showToast('ลบบันทึกสำเร็จ');
+  });
+}
+
+/* ---------------- SETTINGS ---------------- */
+function exportExcel(){
+  if(typeof XLSX === 'undefined'){
+    showToast('ไม่สามารถโหลดไลบรารี Excel ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่', 'warn');
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+
+  // VPS sheet
+  const vpsRows = state.vpsList.map(v=>({
+    'ชื่อ VPS': v.name, 'ป้ายกำกับ': v.label||'', 'แท็ก': v.tag||'', 'IP Address': v.ip||'',
+    'ประเทศ': v.country||'', 'Provider': v.provider||'', 'CPU': v.cpu||'', 'RAM': v.ram||'', 'Disk': v.disk||'',
+    'ค่าใช้จ่าย/เดือน (USD)': v.cost||0, 'สถานะ': statusLabel(v.status), 'Uptime': v.uptime||'', 'หมายเหตุ': v.note||'',
+    'จำนวน Portfolio': vpsPortfolioCount(v.id),
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(vpsRows), 'VPS');
+
+  // Portfolio sheet
+  const pfRows = state.portfolios.map(p=>{
+    const v = vpsById(p.vpsId);
+    return {
+      'รหัส': p.code||'', 'ชื่อ EA': p.ea, 'เวอร์ชัน EA': p.eaVersion||'', 'Magic': p.magic||'',
+      'Broker': p.broker||'', 'เลขบัญชี': p.account||'', 'Leverage': p.leverage||'',
+      'VPS': v?v.name:'ไม่ได้ผูก VPS', 'คู่เงิน': p.symbol||'', 'Lot': p.lot||'',
+      'Balance (USD)': p.balance||0, 'Win Rate (%)': p.winRate||0, 'Health Score': p.healthScore||0,
+      'เป้าหมายรายเดือน (USD)': p.monthlyTarget||0, 'Drawdown จาก Peak (%)': p.ddFromPeak||0,
+      'สถานะการเชื่อมต่อ': statusLabel(p.status), 'สถานะพอร์ต': (badgeMeta[p.badge]||{}).label||p.badge||'',
+      'Favorite': p.favorite?'Yes':'No',
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(pfRows), 'Portfolio');
+
+  // EA sheet
+  const eaRows = state.eaList.map(e=>({
+    'ชื่อ EA': e.name, 'ผู้พัฒนา': e.developer||'', 'ความเสี่ยง': (riskMeta[e.risk]||{}).label||e.risk||'',
+    'Lot เริ่มต้น': e.lot||0, 'Recovery': e.recovery||'', 'สถานะ': (eaStatusMeta[e.status]||{}).label||e.status||'',
+    'เงื่อนไข': (e.conditions||[]).join(' | '), 'จำนวน Portfolio ที่ใช้': eaPortfolioCount(e.name),
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(eaRows), 'EA');
+
+  // Daily Log sheet
+  const logRows = [...state.dailyLogs].sort((a,b)=>a.date.localeCompare(b.date)).map(l=>{
+    const p = portfolioById(l.portfolioId);
+    const v = p ? vpsById(p.vpsId) : null;
+    const profit = l.endBalance - l.startBalance;
+    const profitPct = l.startBalance ? profit/l.startBalance*100 : 0;
+    return {
+      'วันที่': l.date, 'พอร์ต (EA)': p?p.ea:'-', 'คู่เงิน': p?p.symbol:'-', 'VPS': v?v.name:'-',
+      'เริ่มต้น Balance': l.startBalance, 'สิ้นสุด Balance': l.endBalance,
+      'กำไร (USD)': +profit.toFixed(2), 'กำไร (%)': +profitPct.toFixed(2),
+      'Max Float DD (%)': l.maxFloatDD||0, 'จำนวนออเดอร์ทั้งหมด': l.trades||0,
+      'จำนวนออเดอร์ที่ชนะ': l.winTrades!==undefined?l.winTrades:'', 'Win Rate (%)': l.winRate||0,
+      'Health Score': l.healthScore||0, 'สถานะ': statusLabel(l.status), 'หมายเหตุ': l.note||'',
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(logRows), 'Daily Log');
+
+  // Summary sheet
+  const allTime = state.dailyLogs;
+  const totalProfitAllTime = allTime.reduce((s,l)=>s+(l.endBalance-l.startBalance),0);
+  const currentBalance = STARTING_CAPITAL + totalProfitAllTime;
+  const returnPct = STARTING_CAPITAL ? totalProfitAllTime/STARTING_CAPITAL*100 : 0;
+  const dates = allTime.map(l=>l.date).sort();
+  const daysActive = dates.length ? (daysBetweenStr(dates[0], asOf())+1) : 0;
+  const summaryRows = [
+    {'รายการ':'วันที่ Export', 'ค่า': new Date().toISOString().slice(0,10)},
+    {'รายการ':'เริ่มต้น (USD)', 'ค่า': STARTING_CAPITAL},
+    {'รายการ':'ยอดคงเหลือปัจจุบัน (USD)', 'ค่า': +currentBalance.toFixed(2)},
+    {'รายการ':'กำไรสุทธิ (USD)', 'ค่า': +totalProfitAllTime.toFixed(2)},
+    {'รายการ':'ผลตอบแทนรวม (%)', 'ค่า': +returnPct.toFixed(2)},
+    {'รายการ':'ระยะเวลาที่ใช้งาน (วัน)', 'ค่า': daysActive},
+    {'รายการ':'จำนวน VPS', 'ค่า': state.vpsList.length},
+    {'รายการ':'จำนวน Portfolio', 'ค่า': state.portfolios.length},
+    {'รายการ':'จำนวน EA', 'ค่า': state.eaList.length},
+    {'รายการ':'จำนวนบันทึกประจำวัน', 'ค่า': state.dailyLogs.length},
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Summary');
+
+  XLSX.writeFile(wb, 'forex-portfolio-manager-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  showToast('Export Excel สำเร็จ');
+}
+function exportData(){
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'forex-portfolio-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(url);
+}
+document.getElementById('importFile').addEventListener('change', e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed.vpsList || !parsed.portfolios || !parsed.dailyLogs) throw new Error('รูปแบบไฟล์ไม่ถูกต้อง');
+      if(!parsed.eaList) parsed.eaList = [];
+      state = parsed; saveData(); renderAll(); showToast('นำเข้าข้อมูลสำเร็จ');
+    }catch(err){ showToast('นำเข้าไม่สำเร็จ: '+err.message, 'warn'); }
+  };
+  reader.readAsText(file);
+});
+function resetData(){
+  showConfirm('ล้างข้อมูลทั้งหมดและเริ่มใหม่ด้วยข้อมูลตัวอย่าง?', ()=>{
+    state = seedData(); saveData(); initDate(); renderAll();
+    showToast('ล้างข้อมูลและเริ่มใหม่แล้ว');
+  });
+}
+
+/* ---------------- INIT ---------------- */
+function renderAll(){
+  renderKpis();
+  renderMapPreview();
+  renderStatusDonut();
+  renderRecentLog();
+  renderMapFull();
+  fillLogFilters();
+  renderLogTable();
+  renderPortfolioTab();
+  renderVpsTab();
+  renderEaTab();
+  renderStatisticsTab();
+}
+initDate();
+setPfView('table');
+setVpsView('grid');
+setEaView('table');
+switchTab('dashboard');
+</script>
+</body>
+</html>
